@@ -1,6 +1,9 @@
 import { html, nothing } from "lit";
+import { CONTROL_UI_GROWTH_FILE_PATH } from "../../../../src/gateway/control-ui-contract.js";
+import { ConnectErrorDetailCodes } from "../../../../src/gateway/protocol/connect-error-details.js";
 import { t, i18n, SUPPORTED_LOCALES, type Locale } from "../../i18n/index.ts";
 import type { EventLogEntry } from "../app-events.ts";
+import { buildControlUiHttpUrl } from "../control-ui-url.ts";
 import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "../external-link.ts";
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
 import type { GatewayHelloOk } from "../gateway.ts";
@@ -26,8 +29,10 @@ import {
 import { renderOverviewLogTail } from "./overview-log-tail.ts";
 
 type GrowthReviewAction = "complete" | "reopen";
+type GrowthFileHrefBuilder = (relPath: string) => string;
 
 export type OverviewProps = {
+  basePath: string;
   connected: boolean;
   hello: GatewayHelloOk | null;
   settings: UiSettings;
@@ -95,8 +100,16 @@ function normalizeGrowthItem(text: string): string {
     .trim();
 }
 
-function buildGrowthFileHref(relPath: string): string {
-  return `./__openclaw/growth-foundation/file?path=${encodeURIComponent(relPath)}`;
+function buildGrowthFileHref(
+  gatewayUrl: string | null | undefined,
+  basePath: string,
+  relPath: string,
+): string {
+  return buildControlUiHttpUrl({
+    gatewayUrl,
+    basePath,
+    path: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent(relPath)}`,
+  });
 }
 
 function renderGrowthList(items: string[], emptyLabel: string) {
@@ -152,6 +165,7 @@ function renderGrowthCompletionHistory(
     weeklyPath: string | null;
   }>,
   emptyLabel: string,
+  fileHref: GrowthFileHrefBuilder,
 ) {
   if (items.length === 0) {
     return html`<div class="muted">${emptyLabel}</div>`;
@@ -169,7 +183,7 @@ function renderGrowthCompletionHistory(
               ? html`<div style="margin-top:8px;">
                   <a
                     class="session-link"
-                    href=${buildGrowthFileHref(item.weeklyPath)}
+                    href=${fileHref(item.weeklyPath)}
                     target="_blank"
                     rel="noopener noreferrer"
                     >Open weekly review</a
@@ -207,6 +221,7 @@ function renderGrowthCodexSmoke(growth: GrowthFoundationSummary, labels: { none:
 function renderGrowthCodexReviewSmoke(
   growth: GrowthFoundationSummary,
   labels: { none: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   const status = growth.codexReviewSmokeStatus || labels.none;
   const period = growth.codexReviewSmokePeriod || labels.none;
@@ -228,7 +243,7 @@ function renderGrowthCodexReviewSmoke(
           ? html`<div style="margin-top:8px;">
               <a
                 class="session-link"
-                href=${buildGrowthFileHref(growth.codexReviewSmokeDiffPath)}
+                href=${fileHref(growth.codexReviewSmokeDiffPath)}
                 target="_blank"
                 rel="noopener noreferrer"
                 >${labels.openLabel}</a
@@ -263,7 +278,7 @@ function renderGrowthCodexReviewSmoke(
                         ? html`<div style="margin-top:8px;">
                             <a
                               class="session-link"
-                              href=${buildGrowthFileHref(item.diffRelpath)}
+                              href=${fileHref(item.diffRelpath)}
                               target="_blank"
                               rel="noopener noreferrer"
                               >${labels.openLabel}</a
@@ -356,6 +371,7 @@ function renderGrowthGithubSummary(
 function renderGrowthWritebackSummary(
   growth: GrowthFoundationSummary,
   labels: { none: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   const actions =
     growth.githubWritebackActions.length > 0
@@ -381,7 +397,7 @@ function renderGrowthWritebackSummary(
           growth.githubWritebackProposalPath
             ? html`<a
                 class="session-link"
-                href=${buildGrowthFileHref(growth.githubWritebackProposalPath)}
+                href=${fileHref(growth.githubWritebackProposalPath)}
                 target="_blank"
                 rel="noopener noreferrer"
                 >${labels.openLabel}</a
@@ -392,7 +408,7 @@ function renderGrowthWritebackSummary(
           growth.githubWritebackReceiptPath
             ? html`<a
                 class="session-link"
-                href=${buildGrowthFileHref(growth.githubWritebackReceiptPath)}
+                href=${fileHref(growth.githubWritebackReceiptPath)}
                 target="_blank"
                 rel="noopener noreferrer"
                 >Receipt</a
@@ -417,6 +433,7 @@ function renderGrowthWritebackSummary(
 function renderGrowthIssueFlowSummary(
   growth: GrowthFoundationSummary,
   labels: { none: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   const issueRef = growth.issueFlowIssueRef ?? labels.none;
   const stage = growth.issueFlowStage ?? labels.none;
@@ -466,7 +483,7 @@ function renderGrowthIssueFlowSummary(
                 ([label, relPath]) => html`
                   <a
                     class="session-link"
-                    href=${buildGrowthFileHref(relPath)}
+                    href=${fileHref(relPath)}
                     target="_blank"
                     rel="noopener noreferrer"
                     >${label}</a
@@ -493,6 +510,7 @@ function renderGrowthIssueFlowSummary(
 function renderGrowthIssueFlowRecentHistory(
   growth: GrowthFoundationSummary,
   labels: { none: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   const items = growth.issueFlowRecentItems ?? [];
   if (items.length === 0) {
@@ -529,7 +547,7 @@ function renderGrowthIssueFlowRecentHistory(
                   ([label, relPath]) => html`
                     <a
                       class="session-link"
-                      href=${buildGrowthFileHref(relPath)}
+                      href=${fileHref(relPath)}
                       target="_blank"
                       rel="noopener noreferrer"
                       >${label}</a
@@ -548,6 +566,7 @@ function renderGrowthIssueFlowRecentHistory(
 function renderGrowthIssueFlowArchiveSummary(
   growth: GrowthFoundationSummary,
   labels: { none: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   const activeCount = growth.issueFlowActiveCount ?? 0;
   const archivedCount = growth.issueFlowArchivedCount ?? 0;
@@ -566,7 +585,7 @@ function renderGrowthIssueFlowArchiveSummary(
           ? html`<div style="margin-top:8px;">
               <a
                 class="session-link"
-                href=${buildGrowthFileHref(growth.issueFlowArchivedLatestReceiptPath)}
+                href=${fileHref(growth.issueFlowArchivedLatestReceiptPath)}
                 target="_blank"
                 rel="noopener noreferrer"
                 >${labels.openLabel}</a
@@ -591,6 +610,7 @@ function renderGrowthIssueFlowArchiveSummary(
 function renderGrowthRelaySummary(
   growth: GrowthFoundationSummary,
   labels: { none: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   return html`
     <div style="border:1px solid var(--border-color); border-radius:12px; padding:10px 12px;">
@@ -607,7 +627,7 @@ function renderGrowthRelaySummary(
           ? html`<div style="margin-top:8px;">
               <a
                 class="session-link"
-                href=${buildGrowthFileHref(growth.relayCurrentPath)}
+                href=${fileHref(growth.relayCurrentPath)}
                 target="_blank"
                 rel="noopener noreferrer"
                 >${labels.openLabel}</a
@@ -629,6 +649,7 @@ function renderGrowthNotifications(
     path: string | null;
   }>,
   labels: { emptyLabel: string; openLabel: string },
+  fileHref: GrowthFileHrefBuilder,
 ) {
   if (items.length === 0) {
     return html`<div class="muted">${labels.emptyLabel}</div>`;
@@ -648,7 +669,7 @@ function renderGrowthNotifications(
                 item.path
                   ? html`<a
                       class="session-link"
-                      href=${buildGrowthFileHref(item.path)}
+                      href=${fileHref(item.path)}
                       target="_blank"
                       rel="noopener noreferrer"
                       >${labels.openLabel}</a
@@ -683,6 +704,8 @@ export function renderOverview(props: OverviewProps) {
   const growthHistoryItems = growth?.completedHistoryItems ?? [];
   const growthNotifications = growth?.notificationItems ?? [];
   const growthCodexSmokeBackfills = growth?.codexSmokeBackfillItems ?? [];
+  const growthFileHref: GrowthFileHrefBuilder = (relPath) =>
+    buildGrowthFileHref(props.settings.gatewayUrl, props.basePath, relPath);
 
   const pairingHint = (() => {
     if (!shouldShowPairingHint(props.connected, props.lastError, props.lastErrorCode)) {
@@ -1061,10 +1084,14 @@ export function renderOverview(props: OverviewProps) {
                     </div>`
                   : null
               }
-              ${renderGrowthNotifications(growthNotifications, {
-                emptyLabel: t("overview.growth.none"),
-                openLabel: t("overview.growth.openSource"),
-              })}
+              ${renderGrowthNotifications(
+                growthNotifications,
+                {
+                  emptyLabel: t("overview.growth.none"),
+                  openLabel: t("overview.growth.openSource"),
+                },
+                growthFileHref,
+              )}
               <div class="stat-grid" style="margin-top: 16px;">
                 <div class="stat">
                   <div class="stat-label">${t("overview.growth.project")}</div>
@@ -1085,7 +1112,7 @@ export function renderOverview(props: OverviewProps) {
                       growth.weeklyReviewPath
                         ? html`<a
                             class="session-link"
-                            href=${buildGrowthFileHref(growth.weeklyReviewPath)}
+                            href=${growthFileHref(growth.weeklyReviewPath)}
                             target="_blank"
                             rel="noopener noreferrer"
                             >Open</a
@@ -1140,7 +1167,11 @@ export function renderOverview(props: OverviewProps) {
                 </div>
                 <div>
                   <div class="note-title">${t("overview.growth.history")}</div>
-                  ${renderGrowthCompletionHistory(growthHistoryItems, t("overview.growth.none"))}
+                  ${renderGrowthCompletionHistory(
+                    growthHistoryItems,
+                    t("overview.growth.none"),
+                    growthFileHref,
+                  )}
                   ${
                     growth.completedHistoryPath
                       ? html`<div class="muted" style="margin-top:8px;">${growth.completedHistoryPath}</div>`
@@ -1153,10 +1184,14 @@ export function renderOverview(props: OverviewProps) {
                 </div>
                 <div>
                   <div class="note-title">${t("overview.growth.codexReviewSmoke")}</div>
-                  ${renderGrowthCodexReviewSmoke(growth, {
-                    none: t("overview.growth.none"),
-                    openLabel: t("overview.growth.openSource"),
-                  })}
+                  ${renderGrowthCodexReviewSmoke(
+                    growth,
+                    {
+                      none: t("overview.growth.none"),
+                      openLabel: t("overview.growth.openSource"),
+                    },
+                    growthFileHref,
+                  )}
                 </div>
                 <div>
                   <div class="note-title">${t("overview.growth.backfillHistory")}</div>
@@ -1179,38 +1214,58 @@ export function renderOverview(props: OverviewProps) {
                 </div>
                 <div>
                   <div class="note-title">GitHub Write-Back</div>
-                  ${renderGrowthWritebackSummary(growth, {
-                    none: t("overview.growth.none"),
-                    openLabel: t("overview.growth.openSource"),
-                  })}
+                  ${renderGrowthWritebackSummary(
+                    growth,
+                    {
+                      none: t("overview.growth.none"),
+                      openLabel: t("overview.growth.openSource"),
+                    },
+                    growthFileHref,
+                  )}
                 </div>
                 <div>
                   <div class="note-title">Live Issue Flow</div>
-                  ${renderGrowthIssueFlowSummary(growth, {
-                    none: t("overview.growth.none"),
-                    openLabel: t("overview.growth.openSource"),
-                  })}
+                  ${renderGrowthIssueFlowSummary(
+                    growth,
+                    {
+                      none: t("overview.growth.none"),
+                      openLabel: t("overview.growth.openSource"),
+                    },
+                    growthFileHref,
+                  )}
                 </div>
                 <div>
                   <div class="note-title">Recent Issue Flow Runs</div>
-                  ${renderGrowthIssueFlowRecentHistory(growth, {
-                    none: t("overview.growth.none"),
-                    openLabel: t("overview.growth.openSource"),
-                  })}
+                  ${renderGrowthIssueFlowRecentHistory(
+                    growth,
+                    {
+                      none: t("overview.growth.none"),
+                      openLabel: t("overview.growth.openSource"),
+                    },
+                    growthFileHref,
+                  )}
                 </div>
                 <div>
                   <div class="note-title">Issue Flow Archive</div>
-                  ${renderGrowthIssueFlowArchiveSummary(growth, {
-                    none: t("overview.growth.none"),
-                    openLabel: t("overview.growth.openSource"),
-                  })}
+                  ${renderGrowthIssueFlowArchiveSummary(
+                    growth,
+                    {
+                      none: t("overview.growth.none"),
+                      openLabel: t("overview.growth.openSource"),
+                    },
+                    growthFileHref,
+                  )}
                 </div>
                 <div>
                   <div class="note-title">Relay</div>
-                  ${renderGrowthRelaySummary(growth, {
-                    none: t("overview.growth.none"),
-                    openLabel: t("overview.growth.openSource"),
-                  })}
+                  ${renderGrowthRelaySummary(
+                    growth,
+                    {
+                      none: t("overview.growth.none"),
+                      openLabel: t("overview.growth.openSource"),
+                    },
+                    growthFileHref,
+                  )}
                 </div>
                 <div>
                   <div class="note-title">${t("overview.growth.watch")}</div>

@@ -29,6 +29,11 @@ import {
 } from "./auth.js";
 import { normalizeCanvasScopedUrl } from "./canvas-capability.js";
 import {
+  CONTROL_UI_GROWTH_FILE_PATH,
+  CONTROL_UI_GROWTH_FOUNDATION_PATH,
+  CONTROL_UI_GROWTH_REVIEW_ACTION_PATH,
+} from "./control-ui-contract.js";
+import {
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
   type ControlUiRootState,
@@ -52,6 +57,7 @@ import {
   resolveHookChannel,
   resolveHookDeliver,
 } from "./hooks.js";
+import { authorizeGatewayBearerRequestOrReply } from "./http-auth-helpers.js";
 import { sendGatewayAuthFailure, setDefaultSecurityHeaders } from "./http-common.js";
 import { getBearerToken } from "./http-utils.js";
 import { resolveRequestClientIp } from "./net.js";
@@ -364,6 +370,15 @@ function buildPluginRequestStages(params: {
       },
     },
   ];
+}
+
+function isControlUiGrowthRequestPath(requestPath: string, basePath: string): boolean {
+  const prefix = basePath || "";
+  return (
+    requestPath === `${prefix}${CONTROL_UI_GROWTH_FOUNDATION_PATH}` ||
+    requestPath === `${prefix}${CONTROL_UI_GROWTH_FILE_PATH}` ||
+    requestPath === `${prefix}${CONTROL_UI_GROWTH_REVIEW_ACTION_PATH}`
+  );
 }
 
 export function createHooksRequestHandler(
@@ -884,6 +899,24 @@ export function createGatewayHttpServer(opts: {
       );
 
       if (controlUiEnabled) {
+        if (isControlUiGrowthRequestPath(requestPath, controlUiBasePath)) {
+          requestStages.push({
+            name: "control-ui-growth-auth",
+            run: async () => {
+              const ok = await authorizeGatewayBearerRequestOrReply({
+                req,
+                res,
+                auth: resolvedAuth,
+                trustedProxies,
+                allowRealIpFallback,
+                rateLimiter,
+                authSurface: "ws-control-ui",
+                allowLocalDirect: true,
+              });
+              return !ok;
+            },
+          });
+        }
         requestStages.push({
           name: "control-ui-avatar",
           run: () =>
