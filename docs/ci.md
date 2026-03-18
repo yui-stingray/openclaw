@@ -9,7 +9,7 @@ read_when:
 
 # CI Pipeline
 
-The CI runs on every push to `main` and every pull request. It uses smart scoping to skip expensive jobs when only unrelated areas changed.
+The CI runs on every push to `main` and every pull request. It uses smart scoping to skip expensive jobs when only unrelated areas changed. Forks use GitHub-hosted runners so the default pipeline can execute without external runner dependencies.
 
 ## Job Overview
 
@@ -40,11 +40,12 @@ Scope logic lives in `scripts/ci-changed-scope.mjs` and is covered by unit tests
 
 ## Runners
 
-| Runner                           | Jobs                                       |
-| -------------------------------- | ------------------------------------------ |
-| `blacksmith-16vcpu-ubuntu-2404`  | Most Linux jobs, including scope detection |
-| `blacksmith-32vcpu-windows-2025` | `checks-windows`                           |
-| `macos-latest`                   | `macos`, `ios`                             |
+| Runner             | Jobs                                       |
+| ------------------ | ------------------------------------------ |
+| `ubuntu-24.04`     | Most Linux jobs, including scope detection |
+| `windows-2025`     | `checks-windows`                           |
+| `macos-latest`     | `macos`, `ios`                             |
+| `ubuntu-24.04-arm` | Docker release arm64 builds                |
 
 ## Local Equivalents
 
