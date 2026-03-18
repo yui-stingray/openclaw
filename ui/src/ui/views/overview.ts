@@ -883,8 +883,12 @@ export function renderOverview(props: OverviewProps) {
   const growthHistoryItems = growth?.completedHistoryItems ?? [];
   const growthNotifications = growth?.notificationItems ?? [];
   const growthCodexSmokeBackfills = growth?.codexSmokeBackfillItems ?? [];
+  const cronJobs = props.cronJobs ?? [];
+  const attentionItems = props.attentionItems ?? [];
+  const eventLog = props.eventLog ?? [];
+  const overviewLogLines = props.overviewLogLines ?? [];
   const growthFileHref: GrowthFileHrefBuilder = (relPath) =>
-    buildGrowthFileHref(props.settings.gatewayUrl, props.basePath, relPath);
+    buildGrowthFileHref(props.settings.gatewayUrl, props.basePath ?? "", relPath);
 
   const pairingHint = (() => {
     if (!shouldShowPairingHint(props.connected, props.lastError, props.lastErrorCode)) {
@@ -1194,23 +1198,23 @@ export function renderOverview(props: OverviewProps) {
       usageResult: props.usageResult,
       sessionsResult: props.sessionsResult,
       skillsReport: props.skillsReport,
-      cronJobs: props.cronJobs,
+      cronJobs,
       cronStatus: props.cronStatus,
       presenceCount: props.presenceCount,
       onNavigate: props.onNavigate,
     })}
 
-    ${renderOverviewAttention({ items: props.attentionItems })}
+    ${renderOverviewAttention({ items: attentionItems })}
 
     <div class="ov-section-divider"></div>
 
     <div class="ov-bottom-grid" style="margin-top: 18px;">
       ${renderOverviewEventLog({
-        events: props.eventLog,
+        events: eventLog,
       })}
 
       ${renderOverviewLogTail({
-        lines: props.overviewLogLines,
+        lines: overviewLogLines,
         onRefreshLogs: props.onRefreshLogs,
       })}
     </div>

@@ -3,6 +3,8 @@
 import { render } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
+import { CONTROL_UI_GROWTH_FILE_PATH } from "../../../../src/gateway/control-ui-contract.js";
+import { buildControlUiHttpUrl } from "../control-ui-url.ts";
 import { renderOverview, type OverviewProps } from "./overview.ts";
 
 function createProps(overrides: Partial<OverviewProps> = {}): OverviewProps {
@@ -41,6 +43,14 @@ function createProps(overrides: Partial<OverviewProps> = {}): OverviewProps {
     onGrowthReviewAction: () => undefined,
     ...overrides,
   };
+}
+
+function growthFileHref(relPath: string): string {
+  return buildControlUiHttpUrl({
+    gatewayUrl: "ws://127.0.0.1:18789",
+    basePath: "",
+    path: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent(relPath)}`,
+  });
 }
 
 describe("renderOverview growth foundation panel", () => {
@@ -347,27 +357,37 @@ describe("renderOverview growth foundation panel", () => {
       node.getAttribute("href"),
     );
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Fweekly%2F2026-03-06-weekly-review.md",
+      growthFileHref(
+        "memory/projects/2026-03-06_growth-foundation/weekly/2026-03-06-weekly-review.md",
+      ),
     );
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Factions%2Fcurrent.md",
+      growthFileHref("memory/projects/2026-03-06_growth-foundation/actions/current.md"),
     );
     expect(links).toContain("https://github.com/users/yui-stingray/projects/1");
     expect(links).toContain("https://github.com/yui-stingray/ai-company/pull/4");
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Fgithub-writeback%2Fcurrent-proposal.json",
+      growthFileHref(
+        "memory/projects/2026-03-06_growth-foundation/github-writeback/current-proposal.json",
+      ),
     );
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Fgithub-writeback%2Freceipts%2F2026-03-06-issue-10.json",
+      growthFileHref(
+        "memory/projects/2026-03-06_growth-foundation/github-writeback/receipts/2026-03-06-issue-10.json",
+      ),
     );
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Fissue-flow%2Fissue-17%2Foutcome-bundle.json",
+      growthFileHref(
+        "memory/projects/2026-03-06_growth-foundation/issue-flow/issue-17/outcome-bundle.json",
+      ),
     );
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Fissue-flow%2Farchive%2Fissue-15--20260306T000000Z%2Farchive-receipt.json",
+      growthFileHref(
+        "memory/projects/2026-03-06_growth-foundation/issue-flow/archive/issue-15--20260306T000000Z/archive-receipt.json",
+      ),
     );
     expect(links).toContain(
-      "./__openclaw/growth-foundation/file?path=memory%2Fprojects%2F2026-03-06_growth-foundation%2Frelay%2Fcurrent.md",
+      growthFileHref("memory/projects/2026-03-06_growth-foundation/relay/current.md"),
     );
   });
 

@@ -278,6 +278,7 @@ describe("handleControlUiHttpRequest", () => {
     method: "GET" | "HEAD" | "POST";
     rootPath: string;
     basePath?: string;
+    rootKind?: "resolved" | "bundled";
   }) {
     const { res, end } = makeMockHttpResponse();
     const handled = handleControlUiHttpRequest(
@@ -285,7 +286,7 @@ describe("handleControlUiHttpRequest", () => {
       res,
       {
         ...(params.basePath ? { basePath: params.basePath } : {}),
-        root: { kind: "resolved", path: params.rootPath },
+        root: { kind: params.rootKind ?? "resolved", path: params.rootPath },
       },
     );
     return { res, end, handled };
