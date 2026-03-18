@@ -2,8 +2,8 @@
 
 import { render } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { i18n } from "../../i18n/index.ts";
 import { CONTROL_UI_GROWTH_FILE_PATH } from "../../../../src/gateway/control-ui-contract.js";
+import { i18n } from "../../i18n/index.ts";
 import { buildControlUiHttpUrl } from "../control-ui-url.ts";
 import { renderOverview, type OverviewProps } from "./overview.ts";
 
