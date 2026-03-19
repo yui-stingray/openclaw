@@ -1,0 +1,1 @@
+- fix(plugin-sdk): keep root-alias fast-export reflection lazy so `Object.keys()` and descriptor checks do not block on loading the monolithic SDK during CI.
