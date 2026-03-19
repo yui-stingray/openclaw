@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { resolveMaxWorkersForRun } from "./test-parallel-workers.mjs";
 
 // On Windows, `.cmd` launchers can fail with `spawn EINVAL` when invoked without a shell
 // (especially under GitHub Actions + Git Bash). Use `shell: true` and let the shell resolve pnpm.
@@ -552,29 +553,16 @@ const defaultWorkerBudget =
                 gateway: 1,
               };
 
-// Keep worker counts predictable for local runs; trim macOS CI workers to avoid worker crashes/OOM.
-// In CI on linux/windows, prefer Vitest defaults to avoid cross-test interference from lower worker counts.
-const maxWorkersForRun = (name) => {
-  if (resolvedOverride) {
-    return resolvedOverride;
-  }
-  if (isCI && !isMacOS) {
-    return null;
-  }
-  if (isCI && isMacOS) {
-    return 1;
-  }
-  if (name === "unit-isolated" || name.endsWith("-isolated")) {
-    return defaultWorkerBudget.unitIsolated;
-  }
-  if (name === "extensions") {
-    return defaultWorkerBudget.extensions;
-  }
-  if (name === "gateway") {
-    return defaultWorkerBudget.gateway;
-  }
-  return defaultWorkerBudget.unit;
-};
+// Keep worker counts predictable for local runs while letting macOS CI keep enough
+// worker isolation to avoid cross-suite state leakage.
+const maxWorkersForRun = (name) =>
+  resolveMaxWorkersForRun({
+    name,
+    resolvedOverride,
+    isCI,
+    isMacOS,
+    defaultWorkerBudget,
+  });
 
 const WARNING_SUPPRESSION_FLAGS = [
   "--disable-warning=ExperimentalWarning",
