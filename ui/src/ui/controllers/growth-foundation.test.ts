@@ -1049,7 +1049,8 @@ describe("loadGrowthFoundationSummary", () => {
     if (!resolveFetch) {
       throw new Error("expected fetch resolver to be registered");
     }
-    resolveFetch({
+    const resolvePendingFetch = resolveFetch;
+    resolvePendingFetch({
       ok: true,
       status: 200,
       json: async (): Promise<ControlUiGrowthReviewActionResponse> => ({
