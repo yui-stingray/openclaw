@@ -3,7 +3,6 @@ import {
   CONTROL_UI_GROWTH_FILE_PATH,
   CONTROL_UI_GROWTH_PR_WATCH_SYNC_ITEM_KEY,
 } from "../../../../src/gateway/control-ui-contract.js";
-import { ConnectErrorDetailCodes } from "../../../../src/gateway/protocol/connect-error-details.js";
 import { t, i18n, SUPPORTED_LOCALES, type Locale } from "../../i18n/index.ts";
 import type { EventLogEntry } from "../app-events.ts";
 import { buildControlUiHttpUrl } from "../control-ui-url.ts";
