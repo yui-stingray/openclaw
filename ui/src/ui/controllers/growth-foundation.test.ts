@@ -5,8 +5,11 @@ import {
   CONTROL_UI_GROWTH_FOUNDATION_PATH,
   CONTROL_UI_GROWTH_PR_WATCH_SYNC_ITEM_KEY,
   CONTROL_UI_GROWTH_REVIEW_ACTION_PATH,
+  type ControlUiGrowthFoundationSnapshot,
+  type ControlUiGrowthReviewActionResponse,
 } from "../../../../src/gateway/control-ui-contract.js";
 import {
+  type GrowthFoundationState,
   loadGrowthFoundationSummary,
   submitGrowthFoundationReviewAction,
 } from "./growth-foundation.ts";
@@ -15,7 +18,7 @@ describe("loadGrowthFoundationSummary", () => {
   it("loads the growth foundation summary from the control-ui endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
+      json: async (): Promise<ControlUiGrowthFoundationSnapshot> => ({
         available: true,
         projectId: "growth-foundation",
         workspaceProjectId: "2026-03-06_growth-foundation",
@@ -225,7 +228,7 @@ describe("loadGrowthFoundationSummary", () => {
     });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const state = {
+    const state: GrowthFoundationState = {
       basePath: "/openclaw",
       growthFoundation: null,
     };
@@ -270,7 +273,7 @@ describe("loadGrowthFoundationSummary", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const state = {
+    const state: GrowthFoundationState = {
       basePath: "",
       growthFoundation: {
         available: true,
@@ -482,7 +485,7 @@ describe("loadGrowthFoundationSummary", () => {
     });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const state = {
+    const state: GrowthFoundationState = {
       basePath: "/openclaw",
       growthFoundation: {
         available: true,
@@ -681,7 +684,7 @@ describe("loadGrowthFoundationSummary", () => {
     });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const state = {
+    const state: GrowthFoundationState = {
       basePath: "",
       growthFoundation: {
         available: true,
@@ -815,7 +818,7 @@ describe("loadGrowthFoundationSummary", () => {
     });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const state = {
+    const state: GrowthFoundationState = {
       basePath: "",
       growthFoundation: {
         available: true,
@@ -924,7 +927,11 @@ describe("loadGrowthFoundationSummary", () => {
 
   it("ignores concurrent review action submissions while one is already running", async () => {
     let resolveFetch:
-      | ((value: { ok: boolean; status: number; json: () => Promise<unknown> }) => void)
+      | ((value: {
+          ok: boolean;
+          status: number;
+          json: () => Promise<ControlUiGrowthReviewActionResponse>;
+        }) => void)
       | null = null;
     const fetchMock = vi.fn().mockImplementation(
       () =>
@@ -934,7 +941,7 @@ describe("loadGrowthFoundationSummary", () => {
     );
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const state = {
+    const state: GrowthFoundationState = {
       basePath: "",
       growthFoundation: {
         available: true,
@@ -1042,7 +1049,7 @@ describe("loadGrowthFoundationSummary", () => {
     resolveFetch?.({
       ok: true,
       status: 200,
-      json: async () => ({
+      json: async (): Promise<ControlUiGrowthReviewActionResponse> => ({
         success: true,
         action: "complete",
         itemKey: "item-1",
@@ -1050,7 +1057,7 @@ describe("loadGrowthFoundationSummary", () => {
           ...state.growthFoundation,
           reviewCount: 0,
           completedReviewCount: 2,
-        },
+        } satisfies ControlUiGrowthFoundationSnapshot,
       }),
     });
     await first;

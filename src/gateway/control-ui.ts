@@ -1699,6 +1699,19 @@ function summarizeGrowthGithubPrWatchFreshness(updatedAt: string | null): {
   return { freshnessStatus: "fresh", ageMinutes };
 }
 
+function normalizeGrowthActionOutput(
+  value: string | Buffer | null | undefined,
+  fallback: string,
+): string {
+  if (typeof value === "string") {
+    return value.trim() || fallback;
+  }
+  if (value) {
+    return value.toString().trim() || fallback;
+  }
+  return fallback;
+}
+
 function runGrowthReviewAction(params: {
   workspaceRoot: string;
   projectId: string;
@@ -1741,7 +1754,10 @@ function runGrowthReviewAction(params: {
     return { ok: false, status: 500, error: result.error.message };
   }
   if (result.status !== 0) {
-    const errorText = (result.stderr || result.stdout || "growth review action failed").trim();
+    const errorText = normalizeGrowthActionOutput(
+      result.stderr || result.stdout,
+      "growth review action failed",
+    );
     let status = 500;
     if (errorText.includes("item-key not found")) {
       status = 404;
@@ -1794,7 +1810,10 @@ function runGrowthPrWatchSyncAction(params: {
     return { ok: false, status: 500, error: result.error.message };
   }
   if (result.status !== 0) {
-    const errorText = (result.stderr || result.stdout || "github pr watch sync failed").trim();
+    const errorText = normalizeGrowthActionOutput(
+      result.stderr || result.stdout,
+      "github pr watch sync failed",
+    );
     return { ok: false, status: 500, error: errorText };
   }
   return { ok: true, snapshot: buildGrowthFoundationSnapshot(undefined, params.workspaceRoot) };

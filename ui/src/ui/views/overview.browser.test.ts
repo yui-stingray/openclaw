@@ -16,12 +16,14 @@ function createProps(overrides: Partial<OverviewProps> = {}): OverviewProps {
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "system",
+      theme: "claw",
+      themeMode: "system",
       locale: "en",
       chatFocusMode: false,
       chatShowThinking: true,
       splitRatio: 0.6,
       navCollapsed: false,
+      navWidth: 220,
       navGroupsCollapsed: {},
     },
     password: "",
@@ -522,7 +524,7 @@ describe("renderOverview growth foundation panel", () => {
       container,
     );
 
-    const buttons = Array.from(container.querySelectorAll("button.btn--sm"));
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button.btn--sm"));
     expect(buttons).toHaveLength(2);
     expect(buttons.every((node) => node.disabled)).toBe(true);
     expect(buttons[0]?.textContent).toContain("Updating");
