@@ -53,9 +53,11 @@ Think of the suites as “increasing realism” (and increasing flakiness/cost):
   - No real keys required
   - Should be fast and stable
 - Pool note:
-  - OpenClaw uses Vitest `vmForks` on Node 22/23 for faster unit shards.
-  - On Node 24+, OpenClaw automatically falls back to regular `forks` to avoid Node VM linking errors (`ERR_VM_MODULE_LINK_FAILURE` / `module is already linked`).
+  - OpenClaw uses Vitest `vmForks` on Node 22, 23, and 24 for faster unit shards.
+  - On Node 25+, OpenClaw automatically falls back to regular `forks` until the repo is re-validated there.
+  - macOS CI now forces regular `forks` by default because `vmForks` still shows intermittent cross-file leakage there.
   - Override manually with `OPENCLAW_TEST_VM_FORKS=0` (force `forks`) or `OPENCLAW_TEST_VM_FORKS=1` (force `vmForks`).
+  - High-variance CLI integration suites that mix env mutation and module-level command mocks can be pinned to the `unit-isolated` lane in `scripts/test-parallel.mjs` when `vmForks` starts leaking shared state on macOS CI.
 
 ### E2E (gateway smoke)
 

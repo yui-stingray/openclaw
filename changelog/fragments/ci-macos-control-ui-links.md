@@ -1,0 +1,1 @@
+Fixed Control UI link resolution so loopback and non-IP custom binds no longer probe host network interfaces. This avoids macOS CI failures when `os.networkInterfaces()` is unavailable and keeps dashboard URL generation on the safe loopback fallback.

@@ -75,7 +75,7 @@ The Control UI can localize itself on first load based on your browser locale, a
 - Stream tool calls + live tool output cards in Chat (agent events)
 - Channels: WhatsApp/Telegram/Discord/Slack + plugin channels (Mattermost, etc.) status + QR login + per-channel config (`channels.status`, `web.login.*`, `config.patch`)
 - Instances: presence list + refresh (`system-presence`)
-- Sessions: list + per-session thinking/verbose overrides (`sessions.list`, `sessions.patch`)
+- Sessions: list + per-session thinking/fast/verbose/reasoning overrides (`sessions.list`, `sessions.patch`)
 - Cron jobs: list/add/edit/run/enable/disable + run history (`cron.*`)
 - Skills: status, enable/disable, install, API key updates (`skills.*`)
 - Nodes: list + caps (`node.list`)
@@ -87,6 +87,11 @@ The Control UI can localize itself on first load based on your browser locale, a
 - Debug: status/health/models snapshots + event log + manual RPC calls (`status`, `health`, `models.list`)
 - Logs: live tail of gateway file logs with filter/export (`logs.tail`)
 - Update: run a package/git update + restart (`update.run`) with a restart report
+- Overview: growth foundation links can open surfaced workspace markdown, JSON, and diff artifacts directly from the browser
+- Overview: growth foundation review actions are serialized in the browser so overlapping item updates cannot race the snapshot state
+- Overview: growth foundation artifact relpaths are normalized to the active workspace project even when source markdown keeps a display-name alias
+- Overview: growth foundation file links stay on the current Control UI basePath, so `/openclaw/overview` resolves them to `/openclaw/__openclaw/...`
+- Overview: growth foundation open-review counts are reconciled against `actions/manual-state.json`, so stale `actions/current.md` entries do not re-open completed reviews in the panel
 
 Cron jobs panel notes:
 

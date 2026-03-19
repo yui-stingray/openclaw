@@ -119,6 +119,13 @@ function getMonolithicSdk() {
   return null;
 }
 
+function peekMonolithicSdk() {
+  if (monolithicSdk && typeof monolithicSdk === "object") {
+    return monolithicSdk;
+  }
+  return null;
+}
+
 function getExportValue(prop) {
   if (Reflect.has(target, prop)) {
     return Reflect.get(target, prop);
@@ -128,29 +135,6 @@ function getExportValue(prop) {
     return undefined;
   }
   return Reflect.get(monolithic, prop);
-}
-
-function getExportDescriptor(prop) {
-  const ownDescriptor = Reflect.getOwnPropertyDescriptor(target, prop);
-  if (ownDescriptor) {
-    return ownDescriptor;
-  }
-
-  const monolithic = getMonolithicSdk();
-  if (!monolithic) {
-    return undefined;
-  }
-
-  const descriptor = Reflect.getOwnPropertyDescriptor(monolithic, prop);
-  if (!descriptor) {
-    return undefined;
-  }
-
-  // Proxy invariants require descriptors returned for dynamic properties to be configurable.
-  return {
-    ...descriptor,
-    configurable: true,
-  };
 }
 
 rootExports = new Proxy(target, {
@@ -169,7 +153,7 @@ rootExports = new Proxy(target, {
   },
   ownKeys() {
     const keys = new Set(Reflect.ownKeys(target));
-    const monolithic = getMonolithicSdk();
+    const monolithic = peekMonolithicSdk();
     if (monolithic) {
       for (const key of Reflect.ownKeys(monolithic)) {
         if (!keys.has(key)) {
@@ -180,7 +164,25 @@ rootExports = new Proxy(target, {
     return [...keys];
   },
   getOwnPropertyDescriptor(_target, prop) {
-    return getExportDescriptor(prop);
+    const ownDescriptor = Reflect.getOwnPropertyDescriptor(target, prop);
+    if (ownDescriptor) {
+      return ownDescriptor;
+    }
+
+    const monolithic = peekMonolithicSdk();
+    if (!monolithic) {
+      return undefined;
+    }
+
+    const descriptor = Reflect.getOwnPropertyDescriptor(monolithic, prop);
+    if (!descriptor) {
+      return undefined;
+    }
+
+    return {
+      ...descriptor,
+      configurable: true,
+    };
   },
 });
 

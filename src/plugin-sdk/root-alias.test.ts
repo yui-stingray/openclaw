@@ -104,6 +104,17 @@ describe("plugin-sdk root alias", () => {
     expect(lazyModule.jitiLoadCalls).toBe(0);
   });
 
+  it("keeps fast-export reflection lazy until a legacy export is requested", () => {
+    const lazyModule = loadRootAliasWithStubs();
+    const lazyRootSdk = lazyModule.moduleExports;
+
+    expect("resolveControlCommandGate" in lazyRootSdk).toBe(true);
+    expect(Object.keys(lazyRootSdk)).toContain("resolveControlCommandGate");
+    expect(Object.getOwnPropertyDescriptor(lazyRootSdk, "resolveControlCommandGate")).toBeDefined();
+    expect(lazyModule.createJitiCalls).toBe(0);
+    expect(lazyModule.jitiLoadCalls).toBe(0);
+  });
+
   it("loads legacy root exports on demand and preserves reflection", () => {
     const lazyModule = loadRootAliasWithStubs({
       monolithicExports: {

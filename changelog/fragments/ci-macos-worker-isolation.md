@@ -1,0 +1,1 @@
+- fix(ci): raise the macOS CI `test-parallel` worker cap to `2` so shared-worker leakage does not corrupt otherwise passing Vitest suites.

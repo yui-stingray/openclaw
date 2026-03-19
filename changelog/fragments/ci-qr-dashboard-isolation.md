@@ -1,0 +1,1 @@
+- fix(ci): move `src/cli/qr-dashboard.integration.test.ts` onto the isolated Vitest lane so macOS `vmForks` runs stop corrupting the shared `qr`/`dashboard` command mocks.

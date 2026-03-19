@@ -124,6 +124,33 @@ describe("detectChangedScope", () => {
     });
   });
 
+  it("runs platform lanes when the CI workflow changes", () => {
+    expect(detectChangedScope([".github/workflows/ci.yml"])).toEqual({
+      runNode: true,
+      runMacos: true,
+      runAndroid: true,
+      runWindows: true,
+      runSkillsPython: true,
+    });
+  });
+
+  it("runs macOS when the shared test runner changes", () => {
+    expect(detectChangedScope(["scripts/test-parallel.mjs"])).toEqual({
+      runNode: true,
+      runMacos: true,
+      runAndroid: false,
+      runWindows: true,
+      runSkillsPython: false,
+    });
+    expect(detectChangedScope(["scripts/test-parallel-workers.mjs"])).toEqual({
+      runNode: true,
+      runMacos: true,
+      runAndroid: false,
+      runWindows: true,
+      runSkillsPython: false,
+    });
+  });
+
   it("treats base and head as literal git args", () => {
     const markerPath = path.join(
       os.tmpdir(),

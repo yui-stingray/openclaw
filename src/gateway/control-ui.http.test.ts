@@ -1,13 +1,82 @@
+import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { CONTROL_UI_BOOTSTRAP_CONFIG_PATH } from "./control-ui-contract.js";
-import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
+  CONTROL_UI_GROWTH_FILE_PATH,
+  CONTROL_UI_GROWTH_FOUNDATION_PATH,
+  CONTROL_UI_GROWTH_PR_WATCH_SYNC_ITEM_KEY,
+  CONTROL_UI_GROWTH_REVIEW_ACTION_PATH,
+} from "./control-ui-contract.js";
+import {
+  handleControlUiAvatarRequest,
+  handleControlUiHttpRequest,
+  setGrowthPrWatchSyncRunnerForTests,
+  setGrowthReviewActionRunnerForTests,
+} from "./control-ui.js";
 import { makeMockHttpResponse } from "./test-http-response.js";
 
 describe("handleControlUiHttpRequest", () => {
+  function mockSuccessfulGrowthReviewAction() {
+    const calls: Array<{
+      scriptPath: string;
+      workspaceRoot: string;
+      projectId: string;
+      itemKey: string;
+      action: string;
+    }> = [];
+    setGrowthReviewActionRunnerForTests((params) => {
+      calls.push(params);
+      return {
+        pid: 1234,
+        output: [null, "ok\n", ""],
+        stdout: "ok\n",
+        stderr: "",
+        status: 0,
+        signal: null,
+      } as ReturnType<typeof import("node:child_process").spawnSync>;
+    });
+    return {
+      calls,
+      restore() {
+        setGrowthReviewActionRunnerForTests(null);
+      },
+    };
+  }
+
+  function mockSuccessfulGrowthPrWatchSync() {
+    const calls: Array<{
+      scriptPath: string;
+      workspaceRoot: string;
+      projectId: string;
+      projectRoot: string;
+      itemKey: string;
+      source: string;
+      action: string;
+    }> = [];
+    setGrowthPrWatchSyncRunnerForTests((params) => {
+      calls.push(params);
+      return {
+        pid: 1234,
+        output: [null, "ok\n", ""],
+        stdout: "ok\n",
+        stderr: "",
+        status: 0,
+        signal: null,
+      } as ReturnType<typeof import("node:child_process").spawnSync>;
+    });
+    return {
+      calls,
+      restore() {
+        setGrowthPrWatchSyncRunnerForTests(null);
+      },
+    };
+  }
+
   async function withControlUiRoot<T>(params: {
     indexHtml?: string;
     fn: (tmp: string) => Promise<T>;
@@ -28,6 +97,168 @@ describe("handleControlUiHttpRequest", () => {
       assistantAvatar: string;
       assistantAgentId: string;
     };
+  }
+
+  function parseGrowthPayload(end: ReturnType<typeof makeMockHttpResponse>["end"]) {
+    return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
+      available: boolean;
+      projectId: string | null;
+      workspaceProjectId?: string | null;
+      alertStatus: string;
+      actionsStatus: string;
+      reviewCount: number;
+      thisWeek: string[];
+      thisWeekItems: Array<{ key: string; display: string }>;
+      completedThisWeekItems: Array<{ key: string; display: string }>;
+      completedHistoryItems: Array<{
+        action: string;
+        itemKey: string;
+        text: string;
+        weeklyPath: string | null;
+      }>;
+      notificationStatus: string;
+      notificationCount: number;
+      notificationItems: Array<{
+        id: string;
+        severity: string;
+        title: string;
+        detail: string;
+        path: string | null;
+        source: string;
+      }>;
+      completedReviewCount: number;
+      alertsPath?: string | null;
+      heartbeatPath?: string | null;
+      completedHistoryPath: string | null;
+      weeklyReviewPath: string | null;
+      codexSmokeStatus: string;
+      codexSmokePeriod: string | null;
+      codexSmokeJobId: string | null;
+      codexSmokeUpdatedAt: string | null;
+      codexSmokeStatePath: string | null;
+      codexReviewSmokeStatus: string;
+      codexReviewSmokePeriod: string | null;
+      codexReviewSmokeJobId: string | null;
+      codexReviewSmokeSourceJobId: string | null;
+      codexReviewSmokeUpdatedAt: string | null;
+      codexReviewSmokeStatePath: string | null;
+      codexReviewSmokeDiffPath: string | null;
+      codexReviewSmokeBackfillCount: number;
+      codexReviewSmokeBackfillItems: Array<{
+        period: string;
+        jobId: string | null;
+        requestedAt: string | null;
+        reason: string | null;
+        sourceJobId: string | null;
+        sourceOrigin: string | null;
+        diffRelpath: string | null;
+      }>;
+      codexReviewSmokeBackfillStatePath: string | null;
+      codexSmokeBackfillCount: number;
+      codexSmokeBackfillItems: Array<{
+        period: string;
+        jobId: string | null;
+        requestedAt: string | null;
+        reason: string | null;
+      }>;
+      codexSmokeBackfillStatePath: string | null;
+      githubSyncStatus: string;
+      githubSyncIssueCount: number;
+      githubSyncUpdatedAt: string | null;
+      githubSyncCurrentPath: string | null;
+      githubProjectStatus: string;
+      githubProjectTitle: string | null;
+      githubProjectUrl: string | null;
+      githubProjectItemCount: number;
+      githubPrWatchStatus?: string;
+      githubPrWatchPullCount?: number;
+      githubPrWatchReadyCount?: number;
+      githubPrWatchAttentionCount?: number;
+      githubPrWatchUpdatedAt?: string | null;
+      githubPrWatchFreshnessStatus?: string;
+      githubPrWatchAgeMinutes?: number | null;
+      githubPrWatchItems?: Array<{
+        repo: string | null;
+        number: number | null;
+        issueRef: string | null;
+        watchStatus: string;
+        readyForMerge: boolean;
+        reason: string | null;
+      }>;
+      githubPrWatchCurrentPath?: string | null;
+      githubPrWatchStatePath?: string | null;
+      githubWritebackStatus: string;
+      githubWritebackIssueRef: string | null;
+      githubWritebackActions: string[];
+      githubWritebackCloseIssue: boolean;
+      githubWritebackOperator: string | null;
+      githubWritebackProposalUpdatedAt: string | null;
+      githubWritebackReceiptAppliedAt: string | null;
+      githubWritebackProposalPath: string | null;
+      githubWritebackReceiptPath: string | null;
+      issueFlowStatus?: string;
+      issueFlowStage?: string | null;
+      issueFlowIssueNumber?: number | null;
+      issueFlowIssueRef?: string | null;
+      issueFlowUpdatedAt?: string | null;
+      issueFlowDirectoryPath?: string | null;
+      issueFlowPreflightStatus?: string;
+      issueFlowDraftStatus?: string;
+      issueFlowProposalStatus?: string;
+      issueFlowEnqueueStatus?: string;
+      issueFlowOutcomeStatus?: string;
+      issueFlowPreflightPath?: string | null;
+      issueFlowDraftPath?: string | null;
+      issueFlowProposalPath?: string | null;
+      issueFlowReceiptPath?: string | null;
+      issueFlowOutcomePath?: string | null;
+      issueFlowPrimaryResultPath?: string | null;
+      issueFlowActiveCount?: number;
+      issueFlowRecentCount?: number;
+      issueFlowRecentItems?: Array<{
+        issueNumber: number;
+        issueRef: string | null;
+        stage: string | null;
+        status: string;
+        updatedAt: string | null;
+        directoryPath: string;
+        outcomePath: string | null;
+        primaryResultPath: string | null;
+      }>;
+      issueFlowArchivedCount?: number;
+      issueFlowArchiveRootPath?: string | null;
+      issueFlowArchivedLatestIssueRef?: string | null;
+      issueFlowArchivedLatestArchivedAt?: string | null;
+      issueFlowArchivedLatestPath?: string | null;
+      issueFlowArchivedLatestReceiptPath?: string | null;
+      issueFlowVisibilityStatus?: string;
+      issueFlowVisibilityReason?: string | null;
+      issueFlowVisibilityOpenIssue?: boolean | null;
+      issueFlowVisibilityGithubSyncUpdatedAt?: string | null;
+      relayStatus: string;
+      relayChannel: string | null;
+      relayMode: string | null;
+      relayCandidateCount: number;
+      relayUpdatedAt: string | null;
+      relayCurrentPath: string | null;
+    };
+  }
+
+  function growthReviewItemKey(value: string): string {
+    const normalized = value.replace(/`/g, "").trim().split(/\s+/).join(" ");
+    return createHash("sha256").update(normalized).digest("hex").slice(0, 12);
+  }
+
+  function makePostRequest(url: string, payload: Record<string, unknown>) {
+    const req = new EventEmitter() as IncomingMessage;
+    req.url = url;
+    req.method = "POST";
+    req.setEncoding = vi.fn() as unknown as IncomingMessage["setEncoding"];
+    queueMicrotask(() => {
+      req.emit("data", JSON.stringify(payload));
+      req.emit("end");
+    });
+    return req;
   }
 
   function expectNotFoundResponse(params: {
@@ -83,6 +314,13 @@ describe("handleControlUiHttpRequest", () => {
     const filePath = path.join(assetsDir, filename);
     await fs.writeFile(filePath, contents);
     return { assetsDir, filePath };
+  }
+
+  async function createHardlinkedAssetFile(rootPath: string) {
+    const { filePath } = await writeAssetFile(rootPath, "app.js", "console.log('hi');");
+    const hardlinkPath = path.join(path.dirname(filePath), "app.hl.js");
+    await fs.link(filePath, hardlinkPath);
+    return hardlinkPath;
   }
 
   async function withBasePathRootFixture<T>(params: {
@@ -194,6 +432,1839 @@ describe("handleControlUiHttpRequest", () => {
         expect(parsed.assistantName).toBe("Ops");
         expect(parsed.assistantAvatar).toBe("/openclaw/avatar/main");
         expect(parsed.assistantAgentId).toBe("main");
+      },
+    });
+  });
+
+  it("serves growth foundation JSON from the configured workspace", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        try {
+          const projectDir = path.join(workspace, "memory", "projects", "growth-foundation");
+          await fs.mkdir(path.join(projectDir, "actions", "completed"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "alerts"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "weekly"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "github"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "github-pr-watch"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "github-writeback", "receipts"), {
+            recursive: true,
+          });
+          await fs.mkdir(path.join(projectDir, "issue-flow", "issue-16"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "issue-flow", "issue-17"), { recursive: true });
+          await fs.mkdir(
+            path.join(projectDir, "issue-flow", "archive", "issue-15--20260306T000000Z"),
+            {
+              recursive: true,
+            },
+          );
+          await fs.mkdir(path.join(projectDir, "relay"), { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "weekly", "2026-03-06-weekly-review.md"),
+            "# Weekly Review\n",
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "manual-state.json"),
+            JSON.stringify(
+              {
+                completed: {
+                  "done-1": {
+                    status: "completed",
+                    section: "this_week",
+                    weekly: "2026-03-06-weekly-review.md",
+                    text: "Review `queue-output-done`",
+                    completed_at: "2026-03-06T14:00:00+09:00",
+                    source: "mission-control",
+                  },
+                },
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "completed", "2026-03-06.md"),
+            [
+              "# Growth Action Completions - 2026-03-06",
+              "",
+              "## 2026-03-06T14:00:00+09:00",
+              "",
+              "- action: `complete`",
+              "- item-key: `done-1`",
+              "- weekly: `2026-03-06-weekly-review.md`",
+              "- source: `mission-control`",
+              "- text: Review `queue-output-done`",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `actionable`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "- latest-weekly: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- [ ] Review `queue-output-1`",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              "- heartbeat: `memory/projects/growth-foundation/heartbeat/2026-03-06.md`",
+              "- weekly-review: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "- latest-alert: `memory/projects/growth-foundation/alerts/current.md`",
+              "",
+            ].join("\n"),
+          );
+          await fs.mkdir(path.join(projectDir, "automation"), { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "automation", "codex-patch-smoke-state.json"),
+            JSON.stringify(
+              {
+                updated_at: "2026-03-06T15:10:00+09:00",
+                last_enqueued_period: "2026-W10",
+                last_job_id: "scheduled-codex-patch-20260306",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "automation", "codex-patch-smoke-backfill-state.json"),
+            JSON.stringify(
+              {
+                updated_at: "2026-03-06T16:00:00+09:00",
+                entries: {
+                  "2026-W08": {
+                    job_id: "manual-backfill-codex-patch-2026w08",
+                    requested_at: "2026-03-06T15:30:00+09:00",
+                    reason: "WSL downtime skipped the weekly timer",
+                  },
+                },
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "automation", "codex-patch-smoke-review-state.json"),
+            JSON.stringify(
+              {
+                updated_at: "2026-03-06T15:40:00+09:00",
+                last_enqueued_period: "2026-W10",
+                last_job_id: "scheduled-codex-review-20260306",
+                source_job_id: "scheduled-codex-patch-20260306",
+                last_diff_relpath:
+                  "projects/growth-foundation/evidence/2026-03-06_scheduled-codex-review-smoke/scheduled-codex-patch-20260306.diff.patch",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "automation", "codex-patch-smoke-review-backfill-state.json"),
+            JSON.stringify(
+              {
+                updated_at: "2026-03-06T16:10:00+09:00",
+                entries: {
+                  "2026-W08": {
+                    job_id: "manual-backfill-codex-review-2026w08",
+                    requested_at: "2026-03-06T16:05:00+09:00",
+                    reason: "WSL downtime skipped the reviewer timer",
+                    source_job_id: "manual-backfill-codex-patch-2026w08",
+                    source_origin: "patch-backfill",
+                    diff_relpath:
+                      "projects/growth-foundation/evidence/2026-03-06_manual-backfill-codex-review-smoke/manual-backfill-codex-patch-2026w08.diff.patch",
+                  },
+                },
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "github", "state.json"),
+            JSON.stringify(
+              {
+                status: "synced",
+                updated_at: "2026-03-07T22:10:00+09:00",
+                issue_count: 2,
+                issues: [
+                  {
+                    repo: "yui-stingray/ai-company",
+                    number: 12,
+                    title: "Define the first orchestrator acceptance contract",
+                    url: "https://github.com/yui-stingray/ai-company/issues/12",
+                    state: "open",
+                    updated_at: "2026-03-07T00:10:00Z",
+                  },
+                  {
+                    repo: "yui-stingray/growth-foundation",
+                    number: 17,
+                    title: "Dedicated proof-run issue already closed",
+                    url: "https://github.com/yui-stingray/growth-foundation/issues/17",
+                    state: "closed",
+                    updated_at: "2026-03-07T12:00:00Z",
+                  },
+                ],
+                project_sync: {
+                  status: "synced",
+                  title: "Growth Foundation",
+                  url: "https://github.com/users/yui-stingray/projects/1",
+                  items: [
+                    {
+                      repo: "yui-stingray/ai-company",
+                      number: 2,
+                      title: "[upstream-sync] Action required",
+                    },
+                  ],
+                },
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(path.join(projectDir, "github", "current.md"), "# GitHub\n");
+          await fs.writeFile(
+            path.join(projectDir, "github-pr-watch", "state.json"),
+            JSON.stringify(
+              {
+                status: "ready-for-merge",
+                updated_at: "2026-03-06T17:30:00+09:00",
+                pull_count: 1,
+                ready_count: 1,
+                pulls: [
+                  {
+                    repo: "yui-stingray/ai-company",
+                    number: 5,
+                    issue_ref: "yui-stingray/ai-company#4",
+                    watch_status: "ready-for-merge",
+                    ready_for_merge: true,
+                    reason: "All visible checks are complete; manual merge gate can proceed.",
+                  },
+                ],
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "github-pr-watch", "current.md"),
+            "# GitHub PR Watch\n",
+          );
+          await fs.writeFile(
+            path.join(projectDir, "github-writeback", "current-proposal.json"),
+            JSON.stringify(
+              {
+                schema: "growth-github-writeback-proposal/v1",
+                generated_at: "2026-03-07T21:55:00+09:00",
+                issue_ref: "yui-stingray/growth-foundation#17",
+                planned_actions: ["comment", "close"],
+                close_issue: true,
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "github-writeback", "receipts", "2026-03-07-issue-17.json"),
+            JSON.stringify(
+              {
+                schema: "growth-github-writeback-receipt/v1",
+                issue_ref: "yui-stingray/growth-foundation#17",
+                operator: "yui",
+                applied_at: "2026-03-07T22:00:00+09:00",
+                actions: ["comment", "close"],
+                close_issue: true,
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(
+              projectDir,
+              "issue-flow",
+              "archive",
+              "issue-15--20260306T000000Z",
+              "archive-receipt.json",
+            ),
+            JSON.stringify(
+              {
+                schema: "growth-issue-flow-archive/v1",
+                issue_number: 15,
+                issue_ref: "yui-stingray/growth-foundation#15",
+                stage: "outcome",
+                status: "delivered",
+                updated_at: "2026-03-06T08:00:00+09:00",
+                archived_at: "2026-03-06T20:00:00+09:00",
+                archived_by: "yui",
+                reason: "proof-run is complete",
+                was_latest_active: false,
+                source_relpath: "memory/projects/growth-foundation/issue-flow/issue-15",
+                archive_relpath:
+                  "memory/projects/growth-foundation/issue-flow/archive/issue-15--20260306T000000Z",
+                artifact_filenames: ["preflight.json", "outcome-bundle.json"],
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-16", "preflight.json"),
+            JSON.stringify(
+              {
+                schema: "growth-live-issue-preflight-result/v1",
+                generated_at: "2026-03-07T20:05:42+09:00",
+                project: "growth-foundation",
+                issue_ref: "yui-stingray/growth-foundation#16",
+                status: "synced",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-16", "orchestrator-draft.json"),
+            JSON.stringify(
+              {
+                schema: "growth-orchestrator-draft/v1",
+                generated_at: "2026-03-07T20:20:00+09:00",
+                project: "growth-foundation",
+                issue_ref: "yui-stingray/growth-foundation#16",
+                draft_status: "approved-for-proposal",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-16", "outcome-bundle.json"),
+            JSON.stringify(
+              {
+                schema: "growth-issue-outcome-bundle/v1",
+                generated_at: "2026-03-07T20:47:50+09:00",
+                project: "growth-foundation",
+                issue_ref: "yui-stingray/growth-foundation#16",
+                primary_result_relpath: "queue/results/issue-16-live-operator-run-v1.json",
+                outcome_status: "delivered",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-17", "preflight.json"),
+            JSON.stringify(
+              {
+                generated_at: "2026-03-07T22:05:42+09:00",
+                issue_ref: "yui-stingray/growth-foundation#17",
+                status: "synced",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-17", "orchestrator-draft.json"),
+            JSON.stringify(
+              {
+                generated_at: "2026-03-07T21:20:00+09:00",
+                issue_ref: "yui-stingray/growth-foundation#17",
+                draft_status: "approved-for-proposal",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-17", "queue-proposal.json"),
+            JSON.stringify(
+              {
+                generated_at: "2026-03-07T21:34:51+09:00",
+                issue_ref: "yui-stingray/growth-foundation#17",
+                proposal_status: "ready-for-manual-enqueue",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-17", "enqueue-receipt.json"),
+            JSON.stringify(
+              {
+                issue_ref: "yui-stingray/growth-foundation#17",
+                enqueued_at: "2026-03-07T21:34:57+09:00",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "issue-flow", "issue-17", "outcome-bundle.json"),
+            JSON.stringify(
+              {
+                generated_at: "2026-03-07T21:47:50+09:00",
+                issue_ref: "yui-stingray/growth-foundation#17",
+                outcome_status: "needs-review",
+                primary_result_relpath: "queue/results/issue-17-live-operator-run-v2.json",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "relay", "state.json"),
+            JSON.stringify(
+              {
+                status: "approval-required",
+                channel: "discord",
+                mode: "approval-required",
+                candidate_count: 1,
+                updated_at: "2026-03-06T17:05:00+09:00",
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(path.join(projectDir, "relay", "current.md"), "# Relay\n");
+          vi.useFakeTimers();
+          vi.setSystemTime(new Date("2026-03-06T17:40:00+09:00"));
+
+          try {
+            const { res, end } = makeMockHttpResponse();
+            const handled = handleControlUiHttpRequest(
+              { url: CONTROL_UI_GROWTH_FOUNDATION_PATH, method: "GET" } as IncomingMessage,
+              res,
+              {
+                root: { kind: "resolved", path: tmp },
+                config: { agents: { defaults: { workspace } } },
+              },
+            );
+
+            expect(handled).toBe(true);
+            const parsed = parseGrowthPayload(end);
+            expect(parsed.available).toBe(true);
+            expect(parsed.projectId).toBe("growth-foundation");
+            expect(parsed.workspaceProjectId).toBe("growth-foundation");
+            expect(parsed.alertStatus).toBe("clear");
+            expect(parsed.actionsStatus).toBe("actionable");
+            expect(parsed.notificationStatus).toBe("attention");
+            expect(parsed.notificationCount).toBe(2);
+            expect(parsed.notificationItems[0]?.id).toBe("reviews-open");
+            expect(parsed.notificationItems[0]?.severity).toBe("warning");
+            expect(parsed.notificationItems[0]?.detail).toBe("Review queue-output-1");
+            expect(parsed.notificationItems[0]?.path).toBe(
+              "memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md",
+            );
+            expect(parsed.notificationItems[1]?.id).toBe("github-pr-ready");
+            expect(parsed.notificationItems[1]?.severity).toBe("warning");
+            expect(parsed.notificationItems[1]?.detail).toBe(
+              "yui-stingray/ai-company#4: All visible checks are complete; manual merge gate can proceed.",
+            );
+            expect(parsed.notificationItems[1]?.path).toBe(
+              "memory/projects/growth-foundation/github-pr-watch/current.md",
+            );
+            expect(parsed.notificationItems[1]?.source).toBe("github-pr-watch");
+            expect(parsed.githubPrWatchStatus).toBe("ready-for-merge");
+            expect(parsed.githubPrWatchPullCount).toBe(1);
+            expect(parsed.githubPrWatchReadyCount).toBe(1);
+            expect(parsed.githubPrWatchAttentionCount).toBe(0);
+            expect(parsed.githubPrWatchUpdatedAt).toBe("2026-03-06T17:30:00+09:00");
+            expect(parsed.githubPrWatchFreshnessStatus).toBe("fresh");
+            expect(parsed.githubPrWatchAgeMinutes).toBe(10);
+            expect(parsed.githubPrWatchItems?.[0]?.repo).toBe("yui-stingray/ai-company");
+            expect(parsed.githubPrWatchItems?.[0]?.number).toBe(5);
+            expect(parsed.githubPrWatchItems?.[0]?.issueRef).toBe("yui-stingray/ai-company#4");
+            expect(parsed.githubPrWatchItems?.[0]?.watchStatus).toBe("ready-for-merge");
+            expect(parsed.githubPrWatchItems?.[0]?.readyForMerge).toBe(true);
+            expect(parsed.githubPrWatchCurrentPath).toBe(
+              "memory/projects/growth-foundation/github-pr-watch/current.md",
+            );
+            expect(parsed.githubPrWatchStatePath).toBe(
+              "memory/projects/growth-foundation/github-pr-watch/state.json",
+            );
+            expect(parsed.reviewCount).toBe(1);
+            expect(parsed.thisWeek).toEqual(["Review queue-output-1"]);
+            expect(parsed.thisWeekItems[0]?.key).toBe("7bb1651c6f04");
+            expect(parsed.completedReviewCount).toBe(1);
+            expect(parsed.completedThisWeekItems[0]?.key).toBe("done-1");
+            expect(parsed.completedThisWeekItems[0]?.display).toBe("Review queue-output-done");
+            expect(parsed.completedHistoryItems[0]?.action).toBe("complete");
+            expect(parsed.completedHistoryItems[0]?.itemKey).toBe("done-1");
+            expect(parsed.completedHistoryItems[0]?.text).toBe("Review queue-output-done");
+            expect(parsed.completedHistoryItems[0]?.weeklyPath).toBe(
+              "memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md",
+            );
+            expect(parsed.completedHistoryPath).toBe(
+              "memory/projects/growth-foundation/actions/completed/2026-03-06.md",
+            );
+            expect(parsed.weeklyReviewPath).toBe(
+              "memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md",
+            );
+            expect(parsed.codexSmokeStatus).toBe("scheduled");
+            expect(parsed.codexSmokePeriod).toBe("2026-W10");
+            expect(parsed.codexSmokeJobId).toBe("scheduled-codex-patch-20260306");
+            expect(parsed.codexSmokeUpdatedAt).toBe("2026-03-06T15:10:00+09:00");
+            expect(parsed.codexSmokeStatePath).toBe(
+              "memory/projects/growth-foundation/automation/codex-patch-smoke-state.json",
+            );
+            expect(parsed.codexReviewSmokeStatus).toBe("scheduled");
+            expect(parsed.codexReviewSmokePeriod).toBe("2026-W10");
+            expect(parsed.codexReviewSmokeJobId).toBe("scheduled-codex-review-20260306");
+            expect(parsed.codexReviewSmokeSourceJobId).toBe("scheduled-codex-patch-20260306");
+            expect(parsed.codexReviewSmokeUpdatedAt).toBe("2026-03-06T15:40:00+09:00");
+            expect(parsed.codexReviewSmokeStatePath).toBe(
+              "memory/projects/growth-foundation/automation/codex-patch-smoke-review-state.json",
+            );
+            expect(parsed.codexReviewSmokeDiffPath).toBe(
+              "projects/growth-foundation/evidence/2026-03-06_scheduled-codex-review-smoke/scheduled-codex-patch-20260306.diff.patch",
+            );
+            expect(parsed.codexReviewSmokeBackfillCount).toBe(1);
+            expect(parsed.codexReviewSmokeBackfillItems[0]?.period).toBe("2026-W08");
+            expect(parsed.codexReviewSmokeBackfillItems[0]?.jobId).toBe(
+              "manual-backfill-codex-review-2026w08",
+            );
+            expect(parsed.codexReviewSmokeBackfillItems[0]?.sourceJobId).toBe(
+              "manual-backfill-codex-patch-2026w08",
+            );
+            expect(parsed.codexReviewSmokeBackfillItems[0]?.sourceOrigin).toBe("patch-backfill");
+            expect(parsed.codexReviewSmokeBackfillItems[0]?.diffRelpath).toBe(
+              "projects/growth-foundation/evidence/2026-03-06_manual-backfill-codex-review-smoke/manual-backfill-codex-patch-2026w08.diff.patch",
+            );
+            expect(parsed.codexReviewSmokeBackfillStatePath).toBe(
+              "memory/projects/growth-foundation/automation/codex-patch-smoke-review-backfill-state.json",
+            );
+            expect(parsed.codexSmokeBackfillCount).toBe(1);
+            expect(parsed.codexSmokeBackfillItems[0]?.period).toBe("2026-W08");
+            expect(parsed.codexSmokeBackfillItems[0]?.jobId).toBe(
+              "manual-backfill-codex-patch-2026w08",
+            );
+            expect(parsed.codexSmokeBackfillStatePath).toBe(
+              "memory/projects/growth-foundation/automation/codex-patch-smoke-backfill-state.json",
+            );
+            expect(parsed.githubSyncStatus).toBe("synced");
+            expect(parsed.githubSyncIssueCount).toBe(2);
+            expect(parsed.githubSyncUpdatedAt).toBe("2026-03-07T22:10:00+09:00");
+            expect(parsed.githubSyncCurrentPath).toBe(
+              "memory/projects/growth-foundation/github/current.md",
+            );
+            expect(parsed.githubProjectStatus).toBe("synced");
+            expect(parsed.githubProjectTitle).toBe("Growth Foundation");
+            expect(parsed.githubProjectUrl).toBe(
+              "https://github.com/users/yui-stingray/projects/1",
+            );
+            expect(parsed.githubProjectItemCount).toBe(1);
+            expect(parsed.githubWritebackStatus).toBe("applied");
+            expect(parsed.githubWritebackIssueRef).toBe("yui-stingray/growth-foundation#17");
+            expect(parsed.githubWritebackActions).toEqual(["comment", "close"]);
+            expect(parsed.githubWritebackCloseIssue).toBe(true);
+            expect(parsed.githubWritebackOperator).toBe("yui");
+            expect(parsed.githubWritebackProposalUpdatedAt).toBe("2026-03-07T21:55:00+09:00");
+            expect(parsed.githubWritebackReceiptAppliedAt).toBe("2026-03-07T22:00:00+09:00");
+            expect(parsed.githubWritebackProposalPath).toBe(
+              "memory/projects/growth-foundation/github-writeback/current-proposal.json",
+            );
+            expect(parsed.githubWritebackReceiptPath).toBe(
+              "memory/projects/growth-foundation/github-writeback/receipts/2026-03-07-issue-17.json",
+            );
+            expect(parsed.issueFlowStatus).toBe("needs-review");
+            expect(parsed.issueFlowStage).toBe("outcome");
+            expect(parsed.issueFlowIssueNumber).toBe(17);
+            expect(parsed.issueFlowIssueRef).toBe("yui-stingray/growth-foundation#17");
+            expect(parsed.issueFlowPreflightStatus).toBe("synced");
+            expect(parsed.issueFlowDraftStatus).toBe("approved-for-proposal");
+            expect(parsed.issueFlowProposalStatus).toBe("ready-for-manual-enqueue");
+            expect(parsed.issueFlowEnqueueStatus).toBe("enqueued");
+            expect(parsed.issueFlowOutcomeStatus).toBe("needs-review");
+            expect(parsed.issueFlowDirectoryPath).toBe(
+              "memory/projects/growth-foundation/issue-flow/issue-17",
+            );
+            expect(parsed.issueFlowPreflightPath).toBe(
+              "memory/projects/growth-foundation/issue-flow/issue-17/preflight.json",
+            );
+            expect(parsed.issueFlowOutcomePath).toBe(
+              "memory/projects/growth-foundation/issue-flow/issue-17/outcome-bundle.json",
+            );
+            expect(parsed.issueFlowPrimaryResultPath).toBe(
+              "queue/results/issue-17-live-operator-run-v2.json",
+            );
+            expect(parsed.issueFlowActiveCount).toBe(2);
+            expect(parsed.issueFlowRecentCount).toBe(1);
+            expect(parsed.issueFlowRecentItems).toHaveLength(1);
+            expect(parsed.issueFlowRecentItems?.[0]).toEqual(
+              expect.objectContaining({
+                issueNumber: 16,
+                issueRef: "yui-stingray/growth-foundation#16",
+                stage: "outcome",
+                status: "delivered",
+                directoryPath: "memory/projects/growth-foundation/issue-flow/issue-16",
+                outcomePath:
+                  "memory/projects/growth-foundation/issue-flow/issue-16/outcome-bundle.json",
+                primaryResultPath: "queue/results/issue-16-live-operator-run-v1.json",
+              }),
+            );
+            expect(parsed.issueFlowArchivedCount).toBe(1);
+            expect(parsed.issueFlowArchiveRootPath).toBe(
+              "memory/projects/growth-foundation/issue-flow/archive",
+            );
+            expect(parsed.issueFlowArchivedLatestIssueRef).toBe(
+              "yui-stingray/growth-foundation#15",
+            );
+            expect(parsed.issueFlowArchivedLatestArchivedAt).toBe("2026-03-06T20:00:00+09:00");
+            expect(parsed.issueFlowArchivedLatestPath).toBe(
+              "memory/projects/growth-foundation/issue-flow/archive/issue-15--20260306T000000Z",
+            );
+            expect(parsed.issueFlowArchivedLatestReceiptPath).toBe(
+              "memory/projects/growth-foundation/issue-flow/archive/issue-15--20260306T000000Z/archive-receipt.json",
+            );
+            expect(parsed.issueFlowVisibilityStatus).toBe("aligned");
+            expect(parsed.issueFlowVisibilityReason).toBe(
+              "The issue is no longer open after an applied close write-back.",
+            );
+            expect(parsed.issueFlowVisibilityOpenIssue).toBe(false);
+            expect(parsed.issueFlowVisibilityGithubSyncUpdatedAt).toBe("2026-03-07T22:10:00+09:00");
+            expect(parsed.relayStatus).toBe("approval-required");
+            expect(parsed.relayChannel).toBe("discord");
+            expect(parsed.relayMode).toBe("approval-required");
+            expect(parsed.relayCandidateCount).toBe(1);
+            expect(parsed.relayUpdatedAt).toBe("2026-03-06T17:05:00+09:00");
+            expect(parsed.relayCurrentPath).toBe(
+              "memory/projects/growth-foundation/relay/current.md",
+            );
+
+            await fs.writeFile(
+              path.join(projectDir, "github-pr-watch", "state.json"),
+              JSON.stringify(
+                {
+                  status: "attention",
+                  updated_at: "2026-03-06T16:00:00+09:00",
+                  pull_count: 1,
+                  ready_count: 0,
+                  pulls: [
+                    {
+                      repo: "yui-stingray/ai-company",
+                      number: 5,
+                      issue_ref: "yui-stingray/ai-company#4",
+                      watch_status: "failing-checks",
+                      ready_for_merge: false,
+                      reason: "At least one check has failed.",
+                    },
+                  ],
+                },
+                null,
+                2,
+              ),
+            );
+            const { res: res2, end: end2 } = makeMockHttpResponse();
+            const handled2 = handleControlUiHttpRequest(
+              { url: CONTROL_UI_GROWTH_FOUNDATION_PATH, method: "GET" } as IncomingMessage,
+              res2,
+              {
+                root: { kind: "resolved", path: tmp },
+                config: { agents: { defaults: { workspace } } },
+              },
+            );
+            expect(handled2).toBe(true);
+            const parsed2 = parseGrowthPayload(end2);
+            expect(parsed2.notificationCount).toBe(3);
+            expect(parsed2.notificationItems[1]?.id).toBe("github-pr-attention");
+            expect(parsed2.notificationItems[1]?.severity).toBe("danger");
+            expect(parsed2.notificationItems[1]?.detail).toBe(
+              "yui-stingray/ai-company#4: At least one check has failed.",
+            );
+            expect(parsed2.notificationItems[1]?.path).toBe(
+              "memory/projects/growth-foundation/github-pr-watch/current.md",
+            );
+            expect(parsed2.notificationItems[1]?.source).toBe("github-pr-watch");
+            expect(parsed2.githubPrWatchStatus).toBe("attention");
+            expect(parsed2.githubPrWatchPullCount).toBe(1);
+            expect(parsed2.githubPrWatchReadyCount).toBe(0);
+            expect(parsed2.githubPrWatchAttentionCount).toBe(1);
+            expect(parsed2.githubPrWatchFreshnessStatus).toBe("lagging");
+            expect(parsed2.githubPrWatchAgeMinutes).toBe(100);
+            expect(parsed2.notificationItems[2]?.id).toBe("github-pr-watch-stale");
+            expect(parsed2.notificationItems[2]?.severity).toBe("danger");
+            expect(parsed2.notificationItems[2]?.detail).toBe(
+              "Latest PR watch snapshot is 1h 40m old; refresh may be stalled. Run openclaw-sync-github-pr-watch or inspect openclaw-growth-github-pr-watch.timer.",
+            );
+            expect(parsed2.githubPrWatchItems?.[0]?.watchStatus).toBe("failing-checks");
+            expect(parsed2.githubPrWatchItems?.[0]?.readyForMerge).toBe(false);
+          } finally {
+            vi.useRealTimers();
+          }
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("suppresses stale completed review items from current.md using manual-state", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-manual-state-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        try {
+          const projectDir = path.join(workspace, "memory", "projects", "growth-foundation");
+          const reviewText =
+            "人手レビューを実施する: `live-queue-codex-patch-20260306` (codex/succeeded)";
+          const reviewKey = growthReviewItemKey(reviewText);
+          await fs.mkdir(path.join(projectDir, "actions"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "alerts"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "weekly"), { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "weekly", "2026-03-06-weekly-review.md"),
+            [
+              "# Weekly Review - 2026-03-06",
+              "",
+              "## Follow-ups",
+              "",
+              `- human review: \`${reviewText.split("`")[1]}\` (codex/succeeded)`,
+              "",
+              "## Needs Attention",
+              "",
+              "- no failed, rejected, or timed out jobs",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `actionable`",
+              "- updated_at: `2026-03-08T18:20:14+09:00`",
+              "- latest-weekly: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              `- [ ] ${reviewText}`,
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "manual-state.json"),
+            JSON.stringify(
+              {
+                schema: "growth-action-manual-state/v1",
+                updated_at: "2026-03-08T18:25:00+09:00",
+                completed: {
+                  [reviewKey]: {
+                    status: "completed",
+                    section: "this_week",
+                    weekly: "2026-03-06-weekly-review.md",
+                    text: reviewText,
+                    completed_at: "2026-03-08T18:25:00+09:00",
+                    source: "codex-human-review",
+                  },
+                },
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-08T20:46:57+09:00`",
+              "- action: `none`",
+              "- weekly-review: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "- notes:",
+              "  - none",
+              "",
+            ].join("\n"),
+          );
+
+          const { res, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            { url: CONTROL_UI_GROWTH_FOUNDATION_PATH, method: "GET" } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          const parsed = parseGrowthPayload(end);
+          expect(parsed.available).toBe(true);
+          expect(parsed.actionsStatus).toBe("clear");
+          expect(parsed.reviewCount).toBe(0);
+          expect(parsed.thisWeek).toEqual([]);
+          expect(parsed.thisWeekItems).toEqual([]);
+          expect(parsed.notificationStatus).toBe("clear");
+          expect(parsed.notificationCount).toBe(0);
+          expect(parsed.completedReviewCount).toBe(1);
+          expect(parsed.completedThisWeekItems).toEqual([
+            expect.objectContaining({
+              key: reviewKey,
+              display: "人手レビューを実施する: live-queue-codex-patch-20260306 (codex/succeeded)",
+            }),
+          ]);
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("normalizes surfaced growth artifact paths to the workspace project id", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-path-alias-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const workspaceProjectId = "2026-03-06_growth-foundation";
+        const displayProjectId = "growth-foundation";
+        const projectDir = path.join(workspace, "memory", "projects", workspaceProjectId);
+        const evidenceDir = path.join(
+          workspace,
+          "projects",
+          workspaceProjectId,
+          "evidence",
+          "2026-03-06_scheduled-codex-review-smoke",
+        );
+        const backfillEvidenceDir = path.join(
+          workspace,
+          "projects",
+          workspaceProjectId,
+          "evidence",
+          "2026-03-06_manual-backfill-codex-review-smoke",
+        );
+        const weeklyRelPath = `memory/projects/${displayProjectId}/weekly/2026-03-06-weekly-review.md`;
+        const alertRelPath = `memory/projects/${displayProjectId}/alerts/current.md`;
+        const heartbeatRelPath = `memory/projects/${displayProjectId}/heartbeat/2026-03-06.md`;
+        const diffRelPath =
+          `projects/${displayProjectId}/evidence/2026-03-06_scheduled-codex-review-smoke/` +
+          "scheduled-codex-patch-20260306.diff.patch";
+        const backfillDiffRelPath =
+          `projects/${displayProjectId}/evidence/2026-03-06_manual-backfill-codex-review-smoke/` +
+          "manual-backfill-codex-patch-2026w08.diff.patch";
+        try {
+          await fs.mkdir(path.join(projectDir, "actions"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "alerts"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "weekly"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "heartbeat"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "automation"), { recursive: true });
+          await fs.mkdir(evidenceDir, { recursive: true });
+          await fs.mkdir(backfillEvidenceDir, { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "weekly", "2026-03-06-weekly-review.md"),
+            "# Weekly\n",
+          );
+          await fs.writeFile(path.join(projectDir, "heartbeat", "2026-03-06.md"), "# Heartbeat\n");
+          await fs.writeFile(
+            path.join(evidenceDir, "scheduled-codex-patch-20260306.diff.patch"),
+            "--- diff\n",
+          );
+          await fs.writeFile(
+            path.join(backfillEvidenceDir, "manual-backfill-codex-patch-2026w08.diff.patch"),
+            "--- backfill diff\n",
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              `- project: \`${displayProjectId}\``,
+              "- status: `actionable`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              `- latest-weekly: \`${weeklyRelPath}\``,
+              `- latest-alert: \`${alertRelPath}\``,
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- [ ] Review `queue-output-1`",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              `- project: \`${displayProjectId}\``,
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              `- heartbeat: \`${heartbeatRelPath}\``,
+              `- weekly-review: \`${weeklyRelPath}\``,
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "automation", "codex-patch-smoke-review-state.json"),
+            JSON.stringify(
+              {
+                last_enqueued_period: "2026-W10",
+                last_job_id: "scheduled-codex-review-20260306",
+                source_job_id: "scheduled-codex-patch-20260306",
+                updated_at: "2026-03-06T15:40:00+09:00",
+                last_diff_relpath: diffRelPath,
+              },
+              null,
+              2,
+            ),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "automation", "codex-patch-smoke-review-backfill-state.json"),
+            JSON.stringify(
+              {
+                entries: {
+                  "2026-W08": {
+                    job_id: "manual-backfill-codex-review-2026w08",
+                    requested_at: "2026-03-06T16:05:00+09:00",
+                    reason: "timer skipped",
+                    source_job_id: "manual-backfill-codex-patch-2026w08",
+                    source_origin: "patch-backfill",
+                    diff_relpath: backfillDiffRelPath,
+                  },
+                },
+              },
+              null,
+              2,
+            ),
+          );
+
+          const { res, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            { url: CONTROL_UI_GROWTH_FOUNDATION_PATH, method: "GET" } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          const parsed = parseGrowthPayload(end);
+          expect(parsed.projectId).toBe(displayProjectId);
+          expect(parsed.workspaceProjectId).toBe(workspaceProjectId);
+          expect(parsed.alertsPath).toBe(`memory/projects/${workspaceProjectId}/alerts/current.md`);
+          expect(parsed.weeklyReviewPath).toBe(
+            `memory/projects/${workspaceProjectId}/weekly/2026-03-06-weekly-review.md`,
+          );
+          expect(parsed.heartbeatPath).toBe(
+            `memory/projects/${workspaceProjectId}/heartbeat/2026-03-06.md`,
+          );
+          expect(parsed.notificationItems[0]?.path).toBe(
+            `memory/projects/${workspaceProjectId}/weekly/2026-03-06-weekly-review.md`,
+          );
+          expect(parsed.codexReviewSmokeDiffPath).toBe(
+            `projects/${workspaceProjectId}/evidence/2026-03-06_scheduled-codex-review-smoke/` +
+              "scheduled-codex-patch-20260306.diff.patch",
+          );
+          expect(parsed.codexReviewSmokeBackfillItems[0]?.diffRelpath).toBe(
+            `projects/${workspaceProjectId}/evidence/2026-03-06_manual-backfill-codex-review-smoke/` +
+              "manual-backfill-codex-patch-2026w08.diff.patch",
+          );
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("serves growth weekly review markdown from the configured workspace", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-file-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const weeklyPath = path.join(
+          workspace,
+          "memory",
+          "projects",
+          "growth-foundation",
+          "weekly",
+          "2026-03-06-weekly-review.md",
+        );
+        try {
+          await fs.mkdir(path.dirname(weeklyPath), { recursive: true });
+          await fs.mkdir(
+            path.join(workspace, "memory", "projects", "growth-foundation", "actions"),
+            {
+              recursive: true,
+            },
+          );
+          await fs.mkdir(
+            path.join(workspace, "memory", "projects", "growth-foundation", "alerts"),
+            {
+              recursive: true,
+            },
+          );
+          await fs.writeFile(weeklyPath, "# Weekly Review\n\n- ok\n");
+          await fs.writeFile(
+            path.join(
+              workspace,
+              "memory",
+              "projects",
+              "growth-foundation",
+              "actions",
+              "current.md",
+            ),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "- latest-weekly: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", "growth-foundation", "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              "- heartbeat: `memory/projects/growth-foundation/heartbeat/2026-03-06.md`",
+              "- weekly-review: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "",
+            ].join("\n"),
+          );
+
+          const { res, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            {
+              url: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent("memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md")}`,
+              method: "GET",
+            } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          expect(end).toHaveBeenCalledWith("# Weekly Review\n\n- ok\n");
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("serves surfaced growth files using the workspace project id when the display project differs", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-file-alias-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const workspaceProjectId = "2026-03-06_growth-foundation";
+        const weeklyRelPath =
+          "memory/projects/2026-03-06_growth-foundation/weekly/2026-03-06-weekly-review.md";
+        const weeklyPath = path.join(workspace, weeklyRelPath);
+        try {
+          await fs.mkdir(path.dirname(weeklyPath), { recursive: true });
+          await fs.mkdir(
+            path.join(workspace, "memory", "projects", workspaceProjectId, "actions"),
+            { recursive: true },
+          );
+          await fs.mkdir(path.join(workspace, "memory", "projects", workspaceProjectId, "alerts"), {
+            recursive: true,
+          });
+          await fs.writeFile(weeklyPath, "# Weekly Review\n\n- ok\n");
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", workspaceProjectId, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              `- latest-weekly: \`${weeklyRelPath}\``,
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", workspaceProjectId, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              `- weekly-review: \`${weeklyRelPath}\``,
+              "",
+            ].join("\n"),
+          );
+
+          const { res, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            {
+              url: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent(weeklyRelPath)}`,
+              method: "GET",
+            } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          expect(end).toHaveBeenCalledWith("# Weekly Review\n\n- ok\n");
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("serves overview growth file links under a configured basePath", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(
+          path.join(os.tmpdir(), "openclaw-growth-file-basepath-home-"),
+        );
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const workspaceProjectId = "2026-03-06_growth-foundation";
+        const weeklyRelPath =
+          "memory/projects/2026-03-06_growth-foundation/weekly/2026-03-06-weekly-review.md";
+        const weeklyPath = path.join(workspace, weeklyRelPath);
+        try {
+          await fs.mkdir(path.dirname(weeklyPath), { recursive: true });
+          await fs.mkdir(
+            path.join(workspace, "memory", "projects", workspaceProjectId, "actions"),
+            { recursive: true },
+          );
+          await fs.mkdir(path.join(workspace, "memory", "projects", workspaceProjectId, "alerts"), {
+            recursive: true,
+          });
+          await fs.writeFile(weeklyPath, "# Weekly Review\n\n- ok\n");
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", workspaceProjectId, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              `- latest-weekly: \`${weeklyRelPath}\``,
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", workspaceProjectId, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              `- weekly-review: \`${weeklyRelPath}\``,
+              "",
+            ].join("\n"),
+          );
+
+          const relativeHref = `./__openclaw/growth-foundation/file?path=${encodeURIComponent(weeklyRelPath)}`;
+          const resolved = new URL(relativeHref, "http://localhost/openclaw/overview");
+          const { res, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            { url: `${resolved.pathname}${resolved.search}`, method: "GET" } as IncomingMessage,
+            res,
+            {
+              basePath: "/openclaw",
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          expect(end).toHaveBeenCalledWith("# Weekly Review\n\n- ok\n");
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("serves growth write-back proposal JSON from the configured workspace", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-json-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const projectId = "growth-foundation";
+        const proposalPath = path.join(
+          workspace,
+          "memory",
+          "projects",
+          projectId,
+          "github-writeback",
+          "current-proposal.json",
+        );
+        try {
+          await fs.mkdir(path.dirname(proposalPath), { recursive: true });
+          await fs.mkdir(path.join(workspace, "memory", "projects", projectId, "actions"), {
+            recursive: true,
+          });
+          await fs.mkdir(path.join(workspace, "memory", "projects", projectId, "alerts"), {
+            recursive: true,
+          });
+          await fs.writeFile(
+            proposalPath,
+            '{\n  "issue_ref": "yui-stingray/growth-foundation#17"\n}\n',
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", projectId, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "- latest-weekly: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", projectId, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              "",
+            ].join("\n"),
+          );
+
+          const { res, setHeader, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            {
+              url: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent("memory/projects/growth-foundation/github-writeback/current-proposal.json")}`,
+              method: "GET",
+            } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          expect(setHeader).toHaveBeenCalledWith("Content-Type", "application/json; charset=utf-8");
+          expect(end).toHaveBeenCalledWith(
+            '{\n  "issue_ref": "yui-stingray/growth-foundation#17"\n}\n',
+          );
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("serves growth issue-flow result JSON from the configured workspace", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-result-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const projectId = "growth-foundation";
+        const issueDir = path.join(
+          workspace,
+          "memory",
+          "projects",
+          projectId,
+          "issue-flow",
+          "issue-17",
+        );
+        const resultRelPath = "queue/results/issue-17-live-operator-run-v2.json";
+        const resultPath = path.join(workspace, resultRelPath);
+        try {
+          await fs.mkdir(issueDir, { recursive: true });
+          await fs.mkdir(path.dirname(resultPath), { recursive: true });
+          await fs.mkdir(path.join(workspace, "memory", "projects", projectId, "actions"), {
+            recursive: true,
+          });
+          await fs.mkdir(path.join(workspace, "memory", "projects", projectId, "alerts"), {
+            recursive: true,
+          });
+          await fs.writeFile(
+            path.join(issueDir, "outcome-bundle.json"),
+            JSON.stringify(
+              {
+                issue_ref: "yui-stingray/growth-foundation#17",
+                outcome_status: "needs-review",
+                generated_at: "2026-03-07T21:47:50+09:00",
+                primary_result_relpath: resultRelPath,
+              },
+              null,
+              2,
+            ) + "\n",
+          );
+          await fs.writeFile(resultPath, '{\n  "status": "ok"\n}\n');
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", projectId, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", projectId, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              "",
+            ].join("\n"),
+          );
+
+          const { res, setHeader, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            {
+              url: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent(resultRelPath)}`,
+              method: "GET",
+            } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          expect(setHeader).toHaveBeenCalledWith("Content-Type", "application/json; charset=utf-8");
+          expect(end).toHaveBeenCalledWith('{\n  "status": "ok"\n}\n');
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("serves growth review diff patches from the configured workspace", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-patch-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const projectId = "growth-foundation";
+        const diffRelPath =
+          "projects/growth-foundation/evidence/2026-03-06_scheduled-codex-review-smoke/scheduled-codex-patch-20260306.diff.patch";
+        const diffPath = path.join(workspace, diffRelPath);
+        const reviewStatePath = path.join(
+          workspace,
+          "memory",
+          "projects",
+          projectId,
+          "automation",
+          "codex-patch-smoke-review-state.json",
+        );
+        try {
+          await fs.mkdir(path.dirname(diffPath), { recursive: true });
+          await fs.mkdir(path.dirname(reviewStatePath), { recursive: true });
+          await fs.mkdir(path.join(workspace, "memory", "projects", projectId, "actions"), {
+            recursive: true,
+          });
+          await fs.mkdir(path.join(workspace, "memory", "projects", projectId, "alerts"), {
+            recursive: true,
+          });
+          await fs.writeFile(diffPath, "--- a/file\n+++ b/file\n@@ -1 +1 @@\n-ok\n+better\n");
+          await fs.writeFile(
+            reviewStatePath,
+            JSON.stringify(
+              {
+                last_enqueued_period: "2026-W10",
+                last_job_id: "scheduled-codex-review-20260306",
+                updated_at: "2026-03-06T15:40:00+09:00",
+                last_diff_relpath: diffRelPath,
+              },
+              null,
+              2,
+            ) + "\n",
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", projectId, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(workspace, "memory", "projects", projectId, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              "",
+            ].join("\n"),
+          );
+
+          const { res, setHeader, end } = makeMockHttpResponse();
+          const handled = handleControlUiHttpRequest(
+            {
+              url: `${CONTROL_UI_GROWTH_FILE_PATH}?path=${encodeURIComponent(diffRelPath)}`,
+              method: "GET",
+            } as IncomingMessage,
+            res,
+            {
+              root: { kind: "resolved", path: tmp },
+              config: { agents: { defaults: { workspace } } },
+            },
+          );
+
+          expect(handled).toBe(true);
+          expect(res.statusCode).toBe(200);
+          expect(setHeader).toHaveBeenCalledWith("Content-Type", "text/plain; charset=utf-8");
+          expect(end).toHaveBeenCalledWith("--- a/file\n+++ b/file\n@@ -1 +1 @@\n-ok\n+better\n");
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("accepts growth review action POSTs and returns the refreshed snapshot", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-action-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const projectDir = path.join(workspace, "memory", "projects", "growth-foundation");
+        const scriptsDir = path.join(workspace, "projects", "growth-foundation", "scripts");
+        try {
+          await fs.mkdir(path.join(projectDir, "actions"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "alerts"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "weekly"), { recursive: true });
+          await fs.mkdir(scriptsDir, { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "weekly", "2026-03-06-weekly-review.md"),
+            "# Weekly\n",
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `actionable`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "- latest-weekly: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- [ ] Review `queue-output-1`",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              "- heartbeat: `memory/projects/growth-foundation/heartbeat/2026-03-06.md`",
+              "- weekly-review: `memory/projects/growth-foundation/weekly/2026-03-06-weekly-review.md`",
+            ].join("\n"),
+          );
+          await fs.writeFile(path.join(scriptsDir, "complete_growth_action.py"), "print('ok')\n");
+          const actionRunner = mockSuccessfulGrowthReviewAction();
+
+          try {
+            const { res, end } = makeMockHttpResponse();
+            const handled = handleControlUiHttpRequest(
+              makePostRequest(CONTROL_UI_GROWTH_REVIEW_ACTION_PATH, {
+                action: "complete",
+                itemKey: "item-1",
+                projectId: "growth-foundation",
+              }),
+              res,
+              {
+                root: { kind: "resolved", path: tmp },
+                config: { agents: { defaults: { workspace } } },
+              },
+            );
+
+            expect(handled).toBe(true);
+            await new Promise((resolve) => setImmediate(resolve));
+            const payload = JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
+              success: boolean;
+              action: string;
+              snapshot: { projectId: string | null };
+            };
+            expect(res.statusCode).toBe(200);
+            expect(payload.success).toBe(true);
+            expect(payload.action).toBe("complete");
+            expect(payload.snapshot.projectId).toBe("growth-foundation");
+            expect(actionRunner.calls).toEqual([
+              {
+                scriptPath: path.join(scriptsDir, "complete_growth_action.py"),
+                workspaceRoot: workspace,
+                projectId: "growth-foundation",
+                itemKey: "item-1",
+                action: "complete",
+              },
+            ]);
+          } finally {
+            actionRunner.restore();
+          }
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("accepts pr watch sync POSTs and returns the refreshed snapshot", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(
+          path.join(os.tmpdir(), "openclaw-growth-pr-watch-sync-home-"),
+        );
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const projectDir = path.join(workspace, "memory", "projects", "growth-foundation");
+        const scriptsDir = path.join(workspace, "projects", "growth-foundation", "scripts");
+        try {
+          await fs.mkdir(path.join(projectDir, "actions"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "alerts"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "github-pr-watch"), { recursive: true });
+          await fs.mkdir(scriptsDir, { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `actionable`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- none",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "github-pr-watch", "state.json"),
+            JSON.stringify(
+              {
+                schema: "growth-github-pr-watch-state/v1",
+                updated_at: "2026-03-06T17:30:00+09:00",
+                status: "ready-for-merge",
+                pulls: [],
+              },
+              null,
+              2,
+            ) + "\n",
+          );
+          await fs.writeFile(path.join(scriptsDir, "sync_github_pr_watch.py"), "print('ok')\n");
+          const actionRunner = mockSuccessfulGrowthPrWatchSync();
+
+          try {
+            const { res, end } = makeMockHttpResponse();
+            const handled = handleControlUiHttpRequest(
+              makePostRequest(CONTROL_UI_GROWTH_REVIEW_ACTION_PATH, {
+                action: "sync-pr-watch",
+                itemKey: CONTROL_UI_GROWTH_PR_WATCH_SYNC_ITEM_KEY,
+                projectId: "growth-foundation",
+              }),
+              res,
+              {
+                root: { kind: "resolved", path: tmp },
+                config: { agents: { defaults: { workspace } } },
+              },
+            );
+
+            expect(handled).toBe(true);
+            await new Promise((resolve) => setImmediate(resolve));
+            const payload = JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
+              success: boolean;
+              action: string;
+              snapshot: { projectId: string | null };
+            };
+            expect(res.statusCode).toBe(200);
+            expect(payload.success).toBe(true);
+            expect(payload.action).toBe("sync-pr-watch");
+            expect(payload.snapshot.projectId).toBe("growth-foundation");
+            expect(actionRunner.calls).toEqual([
+              {
+                scriptPath: path.join(scriptsDir, "sync_github_pr_watch.py"),
+                workspaceRoot: workspace,
+                projectId: "growth-foundation",
+                projectRoot: path.join(workspace, "projects", "growth-foundation"),
+                itemKey: CONTROL_UI_GROWTH_PR_WATCH_SYNC_ITEM_KEY,
+                source: "control-ui",
+                action: "sync-pr-watch",
+              },
+            ]);
+          } finally {
+            actionRunner.restore();
+          }
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
+      },
+    });
+  });
+
+  it("uses the workspace project id for review actions when the display project differs", async () => {
+    await withControlUiRoot({
+      fn: async (tmp) => {
+        const home = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-growth-action-alias-home-"));
+        const workspace = path.join(home, ".openclaw", "workspace");
+        const workspaceProjectId = "2026-03-06_growth-foundation";
+        const projectDir = path.join(workspace, "memory", "projects", workspaceProjectId);
+        const scriptsDir = path.join(workspace, "projects", workspaceProjectId, "scripts");
+        try {
+          await fs.mkdir(path.join(projectDir, "actions"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "alerts"), { recursive: true });
+          await fs.mkdir(path.join(projectDir, "weekly"), { recursive: true });
+          await fs.mkdir(scriptsDir, { recursive: true });
+          await fs.writeFile(
+            path.join(projectDir, "weekly", "2026-03-06-weekly-review.md"),
+            "# Weekly\n",
+          );
+          await fs.writeFile(
+            path.join(projectDir, "actions", "current.md"),
+            [
+              "# Growth Action Items",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `actionable`",
+              "- updated_at: `2026-03-06T13:54:16+09:00`",
+              `- latest-weekly: \`memory/projects/${workspaceProjectId}/weekly/2026-03-06-weekly-review.md\``,
+              "",
+              "## Priority Now",
+              "",
+              "- none",
+              "",
+              "## This Week",
+              "",
+              "- [ ] Review `queue-output-1`",
+              "",
+              "## Watch",
+              "",
+              "- none",
+              "",
+            ].join("\n"),
+          );
+          await fs.writeFile(
+            path.join(projectDir, "alerts", "current.md"),
+            [
+              "# Growth Alert State",
+              "",
+              "- project: `growth-foundation`",
+              "- status: `clear`",
+              "- transition: `steady-clear`",
+              "- updated_at: `2026-03-06T13:54:36+09:00`",
+              `- weekly-review: \`memory/projects/${workspaceProjectId}/weekly/2026-03-06-weekly-review.md\``,
+            ].join("\n"),
+          );
+          await fs.writeFile(path.join(scriptsDir, "complete_growth_action.py"), "print('ok')\n");
+          const actionRunner = mockSuccessfulGrowthReviewAction();
+
+          try {
+            const { res, end } = makeMockHttpResponse();
+            const handled = handleControlUiHttpRequest(
+              makePostRequest(CONTROL_UI_GROWTH_REVIEW_ACTION_PATH, {
+                action: "complete",
+                itemKey: "item-1",
+                projectId: workspaceProjectId,
+              }),
+              res,
+              {
+                root: { kind: "resolved", path: tmp },
+                config: { agents: { defaults: { workspace } } },
+              },
+            );
+
+            expect(handled).toBe(true);
+            await new Promise((resolve) => setImmediate(resolve));
+            const payload = JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
+              success: boolean;
+              action: string;
+              snapshot: { projectId: string | null; workspaceProjectId?: string | null };
+            };
+            expect(res.statusCode).toBe(200);
+            expect(payload.success).toBe(true);
+            expect(payload.action).toBe("complete");
+            expect(payload.snapshot.projectId).toBe("growth-foundation");
+            expect(payload.snapshot.workspaceProjectId).toBe(workspaceProjectId);
+            expect(actionRunner.calls).toEqual([
+              {
+                scriptPath: path.join(scriptsDir, "complete_growth_action.py"),
+                workspaceRoot: workspace,
+                projectId: workspaceProjectId,
+                itemKey: "item-1",
+                action: "complete",
+              },
+            ]);
+          } finally {
+            actionRunner.restore();
+          }
+        } finally {
+          await fs.rm(home, { recursive: true, force: true });
+        }
       },
     });
   });
@@ -353,10 +2424,7 @@ describe("handleControlUiHttpRequest", () => {
   it("rejects hardlinked asset files for custom/resolved roots (security boundary)", async () => {
     await withControlUiRoot({
       fn: async (tmp) => {
-        const assetsDir = path.join(tmp, "assets");
-        await fs.mkdir(assetsDir, { recursive: true });
-        await fs.writeFile(path.join(assetsDir, "app.js"), "console.log('hi');");
-        await fs.link(path.join(assetsDir, "app.js"), path.join(assetsDir, "app.hl.js"));
+        await createHardlinkedAssetFile(tmp);
 
         const { res, end, handled } = runControlUiRequest({
           url: "/assets/app.hl.js",
@@ -374,10 +2442,7 @@ describe("handleControlUiHttpRequest", () => {
   it("serves hardlinked asset files for bundled roots (pnpm global install)", async () => {
     await withControlUiRoot({
       fn: async (tmp) => {
-        const assetsDir = path.join(tmp, "assets");
-        await fs.mkdir(assetsDir, { recursive: true });
-        await fs.writeFile(path.join(assetsDir, "app.js"), "console.log('hi');");
-        await fs.link(path.join(assetsDir, "app.js"), path.join(assetsDir, "app.hl.js"));
+        await createHardlinkedAssetFile(tmp);
 
         const { res, end, handled } = runControlUiRequest({
           url: "/assets/app.hl.js",
@@ -392,7 +2457,6 @@ describe("handleControlUiHttpRequest", () => {
       },
     });
   });
-
   it("does not handle POST to root-mounted paths (plugin webhook passthrough)", async () => {
     await withControlUiRoot({
       fn: async (tmp) => {
