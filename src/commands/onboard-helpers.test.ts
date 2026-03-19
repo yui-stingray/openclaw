@@ -108,6 +108,18 @@ describe("resolveControlUiLinks", () => {
     expect(mocks.pickPrimaryTailnetIPv4).not.toHaveBeenCalled();
   });
 
+  it("falls back to loopback for custom hostnames", () => {
+    const links = resolveControlUiLinks({
+      port: 18789,
+      bind: "custom",
+      customBindHost: "gateway.local",
+    });
+    expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
+    expect(links.wsUrl).toBe("ws://127.0.0.1:18789");
+    expect(mocks.pickPrimaryLanIPv4).not.toHaveBeenCalled();
+    expect(mocks.pickPrimaryTailnetIPv4).not.toHaveBeenCalled();
+  });
+
   it("uses tailnet IP for tailnet bind", () => {
     mocks.pickPrimaryTailnetIPv4.mockReturnValueOnce("100.64.0.9");
     const links = resolveControlUiLinks({
