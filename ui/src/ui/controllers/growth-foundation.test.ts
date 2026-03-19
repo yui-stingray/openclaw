@@ -1046,7 +1046,8 @@ describe("loadGrowthFoundationSummary", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const currentSnapshot = state.growthFoundation as ControlUiGrowthFoundationSnapshot;
-    resolveFetch?.({
+    expect(resolveFetch).not.toBeNull();
+    resolveFetch({
       ok: true,
       status: 200,
       json: async (): Promise<ControlUiGrowthReviewActionResponse> => ({
