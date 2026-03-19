@@ -1,0 +1,1 @@
+Fix macOS CI unit runs to default to Vitest `forks` instead of `vmForks`, which avoids intermittent cross-file state leakage during the PR macOS gate. The macOS CI job now also has an explicit timeout so a stalled Node test phase cannot block the whole workflow indefinitely.

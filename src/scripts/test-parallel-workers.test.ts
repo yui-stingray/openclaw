@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-const { resolveMaxWorkersForRun } =
+const { resolveMaxWorkersForRun, resolveUseVmForks } =
   (await import("../../scripts/test-parallel-workers.mjs")) as unknown as {
     resolveMaxWorkersForRun: (params: {
       name: string;
@@ -14,6 +14,14 @@ const { resolveMaxWorkersForRun } =
         gateway: number;
       };
     }) => number | null;
+    resolveUseVmForks: (params: {
+      override: string | undefined;
+      isCI: boolean;
+      isMacOS: boolean;
+      isWindows: boolean;
+      supportsVmForks: boolean;
+      lowMemLocalHost: boolean;
+    }) => boolean;
   };
 
 const defaultWorkerBudget = {
@@ -58,5 +66,33 @@ describe("resolveMaxWorkersForRun", () => {
         defaultWorkerBudget,
       }),
     ).toBe(3);
+  });
+});
+
+describe("resolveUseVmForks", () => {
+  it("disables vmForks on macOS CI by default", () => {
+    expect(
+      resolveUseVmForks({
+        override: undefined,
+        isCI: true,
+        isMacOS: true,
+        isWindows: false,
+        supportsVmForks: true,
+        lowMemLocalHost: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("still honors an explicit vmForks override on macOS CI", () => {
+    expect(
+      resolveUseVmForks({
+        override: "1",
+        isCI: true,
+        isMacOS: true,
+        isWindows: false,
+        supportsVmForks: true,
+        lowMemLocalHost: false,
+      }),
+    ).toBe(true);
   });
 });

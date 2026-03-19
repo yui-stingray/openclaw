@@ -1,7 +1,7 @@
 /**
- * Where: shared worker defaults for the parallel Vitest wrapper.
- * What: centralizes `maxWorkers` selection so CI-specific behavior is testable.
- * Why: macOS CI with a single worker leaks state between otherwise healthy suites.
+ * Where: shared defaults for the parallel Vitest wrapper.
+ * What: centralizes worker and pool selection so CI-specific behavior is testable.
+ * Why: macOS CI has different stability constraints than Linux/Windows lanes.
  */
 
 /**
@@ -51,4 +51,36 @@ export function resolveMaxWorkersForRun({
     return defaultWorkerBudget.gateway;
   }
   return defaultWorkerBudget.unit;
+}
+
+/**
+ * @param {{
+ *   override: string | undefined;
+ *   isCI: boolean;
+ *   isMacOS: boolean;
+ *   isWindows: boolean;
+ *   supportsVmForks: boolean;
+ *   lowMemLocalHost: boolean;
+ * }} params
+ * @returns {boolean}
+ */
+export function resolveUseVmForks({
+  override,
+  isCI,
+  isMacOS,
+  isWindows,
+  supportsVmForks,
+  lowMemLocalHost,
+}) {
+  if (override === "1") {
+    return true;
+  }
+  if (override === "0") {
+    return false;
+  }
+  if (isCI && isMacOS) {
+    // macOS CI still sees intermittent cross-file leakage under vmForks.
+    return false;
+  }
+  return !isWindows && supportsVmForks && !lowMemLocalHost;
 }
