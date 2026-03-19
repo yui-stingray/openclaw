@@ -8,7 +8,8 @@ import { buildControlUiHttpUrl } from "../control-ui-url.ts";
 import { renderOverview, type OverviewProps } from "./overview.ts";
 
 function createProps(overrides: Partial<OverviewProps> = {}): OverviewProps {
-  return {
+  const defaults: OverviewProps = {
+    basePath: "",
     connected: true,
     hello: null,
     settings: {
@@ -34,16 +35,37 @@ function createProps(overrides: Partial<OverviewProps> = {}): OverviewProps {
     cronEnabled: true,
     cronNext: null,
     lastChannelsRefresh: null,
+    usageResult: null,
+    sessionsResult: null,
+    skillsReport: null,
+    cronJobs: [],
+    cronStatus: null,
+    attentionItems: [],
+    eventLog: [],
+    overviewLogLines: [],
+    showGatewayToken: false,
+    showGatewayPassword: false,
     growthFoundation: null,
     growthFoundationActionBusyKey: null,
     growthFoundationActionError: null,
     onSettingsChange: () => undefined,
     onPasswordChange: () => undefined,
     onSessionKeyChange: () => undefined,
+    onToggleGatewayTokenVisibility: () => undefined,
+    onToggleGatewayPasswordVisibility: () => undefined,
     onConnect: () => undefined,
     onRefresh: () => undefined,
+    onNavigate: () => undefined,
+    onRefreshLogs: () => undefined,
     onGrowthReviewAction: () => undefined,
+  };
+  return {
+    ...defaults,
     ...overrides,
+    settings: {
+      ...defaults.settings,
+      ...overrides.settings,
+    },
   };
 }
 

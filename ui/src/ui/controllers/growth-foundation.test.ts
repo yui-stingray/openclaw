@@ -926,16 +926,15 @@ describe("loadGrowthFoundationSummary", () => {
   });
 
   it("ignores concurrent review action submissions while one is already running", async () => {
-    let resolveFetch:
-      | ((value: {
-          ok: boolean;
-          status: number;
-          json: () => Promise<ControlUiGrowthReviewActionResponse>;
-        }) => void)
-      | null = null;
+    type PendingReviewActionResponse = {
+      ok: boolean;
+      status: number;
+      json: () => Promise<ControlUiGrowthReviewActionResponse>;
+    };
+    let resolveFetch: ((value: PendingReviewActionResponse) => void) | null = null;
     const fetchMock = vi.fn().mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<PendingReviewActionResponse>((resolve) => {
           resolveFetch = resolve;
         }),
     );
@@ -1046,6 +1045,7 @@ describe("loadGrowthFoundationSummary", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
+    const currentSnapshot = state.growthFoundation as ControlUiGrowthFoundationSnapshot;
     resolveFetch?.({
       ok: true,
       status: 200,
@@ -1054,7 +1054,7 @@ describe("loadGrowthFoundationSummary", () => {
         action: "complete",
         itemKey: "item-1",
         snapshot: {
-          ...state.growthFoundation,
+          ...currentSnapshot,
           reviewCount: 0,
           completedReviewCount: 2,
         } satisfies ControlUiGrowthFoundationSnapshot,

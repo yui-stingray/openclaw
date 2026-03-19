@@ -250,13 +250,10 @@ describe("handleControlUiHttpRequest", () => {
   }
 
   function makePostRequest(url: string, payload: Record<string, unknown>) {
-    const req = new EventEmitter() as IncomingMessage & {
-      setEncoding: IncomingMessage["setEncoding"] & ReturnType<typeof vi.fn>;
-    };
+    const req = new EventEmitter() as IncomingMessage;
     req.url = url;
     req.method = "POST";
-    req.setEncoding = vi.fn((_: BufferEncoding) => req) as IncomingMessage["setEncoding"] &
-      ReturnType<typeof vi.fn>;
+    req.setEncoding = vi.fn() as unknown as IncomingMessage["setEncoding"];
     queueMicrotask(() => {
       req.emit("data", JSON.stringify(payload));
       req.emit("end");
