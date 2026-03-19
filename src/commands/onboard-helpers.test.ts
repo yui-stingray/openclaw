@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     signal: null,
     killed: false,
   })),
+  pickPrimaryLanIPv4: vi.fn<() => string | undefined>(() => undefined),
   pickPrimaryTailnetIPv4: vi.fn<() => string | undefined>(() => undefined),
 }));
 
@@ -27,12 +28,24 @@ vi.mock("../process/exec.js", () => ({
   runCommandWithTimeout: mocks.runCommandWithTimeout,
 }));
 
+vi.mock("../gateway/net.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../gateway/net.js")>();
+  return {
+    ...actual,
+    pickPrimaryLanIPv4: mocks.pickPrimaryLanIPv4,
+  };
+});
+
 vi.mock("../infra/tailnet.js", () => ({
   pickPrimaryTailnetIPv4: mocks.pickPrimaryTailnetIPv4,
 }));
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  mocks.pickPrimaryLanIPv4.mockReset();
+  mocks.pickPrimaryLanIPv4.mockReturnValue(undefined);
+  mocks.pickPrimaryTailnetIPv4.mockReset();
+  mocks.pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 });
 
 describe("openUrl", () => {
@@ -91,6 +104,8 @@ describe("resolveControlUiLinks", () => {
     });
     expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
     expect(links.wsUrl).toBe("ws://127.0.0.1:18789");
+    expect(mocks.pickPrimaryLanIPv4).not.toHaveBeenCalled();
+    expect(mocks.pickPrimaryTailnetIPv4).not.toHaveBeenCalled();
   });
 
   it("uses tailnet IP for tailnet bind", () => {
@@ -103,11 +118,36 @@ describe("resolveControlUiLinks", () => {
     expect(links.wsUrl).toBe("ws://100.64.0.9:18789");
   });
 
+  it("falls back to loopback when tailnet lookup throws", () => {
+    mocks.pickPrimaryTailnetIPv4.mockImplementationOnce(() => {
+      throw new Error("uv_interface_addresses failed");
+    });
+    const links = resolveControlUiLinks({
+      port: 18789,
+      bind: "tailnet",
+    });
+    expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
+    expect(links.wsUrl).toBe("ws://127.0.0.1:18789");
+  });
+
   it("keeps loopback for auto even when tailnet is present", () => {
     mocks.pickPrimaryTailnetIPv4.mockReturnValueOnce("100.64.0.9");
     const links = resolveControlUiLinks({
       port: 18789,
       bind: "auto",
+    });
+    expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
+    expect(links.wsUrl).toBe("ws://127.0.0.1:18789");
+    expect(mocks.pickPrimaryTailnetIPv4).not.toHaveBeenCalled();
+  });
+
+  it("falls back to loopback when lan lookup throws", () => {
+    mocks.pickPrimaryLanIPv4.mockImplementationOnce(() => {
+      throw new Error("uv_interface_addresses failed");
+    });
+    const links = resolveControlUiLinks({
+      port: 18789,
+      bind: "lan",
     });
     expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
     expect(links.wsUrl).toBe("ws://127.0.0.1:18789");

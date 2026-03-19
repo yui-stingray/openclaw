@@ -12,6 +12,15 @@ import {
 const tempDirs = createTrackedTempDirs();
 const createTempDir = () => tempDirs.make("openclaw-secret-file-test-");
 
+function expectErrorLike(
+  value: unknown,
+  message: string,
+): asserts value is { message: string; name?: string } {
+  expect(value).toMatchObject({
+    message: expect.stringContaining(message),
+  });
+}
+
 afterEach(async () => {
   await tempDirs.cleanup();
 });
@@ -42,8 +51,8 @@ describe("readSecretFileSync", () => {
       ok: false,
       resolvedPath: file,
       message: expect.stringContaining(`Failed to inspect Gateway password file at ${file}:`),
-      error: expect.any(Error),
     });
+    expectErrorLike(result.error, "ENOENT");
   });
 
   it("preserves the underlying cause when throwing for missing files", async () => {
@@ -57,9 +66,9 @@ describe("readSecretFileSync", () => {
       thrown = error as Error;
     }
 
-    expect(thrown).toBeInstanceOf(Error);
+    expectErrorLike(thrown, `Failed to inspect Gateway password file at ${file}:`);
     expect(thrown?.message).toContain(`Failed to inspect Gateway password file at ${file}:`);
-    expect((thrown as Error & { cause?: unknown }).cause).toBeInstanceOf(Error);
+    expectErrorLike((thrown as Error & { cause?: unknown }).cause, "ENOENT");
   });
 
   it("rejects files larger than the secret-file limit", async () => {
