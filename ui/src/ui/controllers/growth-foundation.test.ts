@@ -1046,7 +1046,9 @@ describe("loadGrowthFoundationSummary", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const currentSnapshot = state.growthFoundation as ControlUiGrowthFoundationSnapshot;
-    expect(resolveFetch).not.toBeNull();
+    if (!resolveFetch) {
+      throw new Error("expected fetch resolver to be registered");
+    }
     resolveFetch({
       ok: true,
       status: 200,
