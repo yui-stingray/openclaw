@@ -1049,7 +1049,7 @@ describe("loadGrowthFoundationSummary", () => {
     if (!resolveFetch) {
       throw new Error("expected fetch resolver to be registered");
     }
-    const resolvePendingFetch: (value: PendingReviewActionResponse) => void = resolveFetch;
+    const resolvePendingFetch = resolveFetch as (value: PendingReviewActionResponse) => void;
     resolvePendingFetch({
       ok: true,
       status: 200,
