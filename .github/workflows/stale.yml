@@ -7,6 +7,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  GH_APP_PRIVATE_KEY_AVAILABLE: ${{ secrets.GH_APP_PRIVATE_KEY != '' }}
+  GH_APP_PRIVATE_KEY_FALLBACK_AVAILABLE: ${{ secrets.GH_APP_PRIVATE_KEY_FALLBACK != '' }}
 
 permissions: {}
 
@@ -17,24 +19,26 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         id: app-token
         continue-on-error: true
+        if: env.GH_APP_PRIVATE_KEY_AVAILABLE == 'true'
         with:
           app-id: "2729701"
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         id: app-token-fallback
         continue-on-error: true
+        if: ${{ !steps.app-token.outputs.token && env.GH_APP_PRIVATE_KEY_FALLBACK_AVAILABLE == 'true' }}
         with:
           app-id: "2971289"
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY_FALLBACK }}
       - name: Mark stale issues and pull requests (primary)
         id: stale-primary
         continue-on-error: true
-        uses: actions/stale@v10
+        uses: actions/stale@v9
         with:
-          repo-token: ${{ steps.app-token.outputs.token || steps.app-token-fallback.outputs.token }}
+          repo-token: ${{ steps.app-token.outputs.token || steps.app-token-fallback.outputs.token || github.token }}
           days-before-issue-stale: 7
           days-before-issue-close: 5
           days-before-pr-stale: 5
@@ -65,7 +69,7 @@ jobs:
       - name: Check stale state cache
         id: stale-state
         if: always()
-        uses: actions/github-script@v8
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ steps.app-token-fallback.outputs.token || steps.app-token.outputs.token }}
           script: |
@@ -88,7 +92,7 @@ jobs:
             }
       - name: Mark stale issues and pull requests (fallback)
         if: (steps.stale-primary.outcome == 'failure' || steps.stale-state.outputs.has_state == 'true') && steps.app-token-fallback.outputs.token != ''
-        uses: actions/stale@v10
+        uses: actions/stale@v9
         with:
           repo-token: ${{ steps.app-token-fallback.outputs.token }}
           days-before-issue-stale: 7
@@ -124,15 +128,16 @@ jobs:
       issues: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         id: app-token
+        if: env.GH_APP_PRIVATE_KEY_AVAILABLE == 'true'
         with:
           app-id: "2729701"
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - name: Lock closed issues after 48h of no comments
-        uses: actions/github-script@v8
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.app-token.outputs.token || github.token }}
           script: |
             const lockAfterHours = 48;
             const lockAfterMs = lockAfterHours * 60 * 60 * 1000;
