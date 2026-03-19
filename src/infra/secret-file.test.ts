@@ -52,6 +52,9 @@ describe("readSecretFileSync", () => {
       resolvedPath: file,
       message: expect.stringContaining(`Failed to inspect Gateway password file at ${file}:`),
     });
+    if (result.ok) {
+      throw new Error("expected secret file read to fail");
+    }
     expectErrorLike(result.error, "ENOENT");
   });
 
