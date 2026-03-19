@@ -1,0 +1,1 @@
+- fix remaining `swiftformat --lint` violations in the macOS sources after the `v2026.3.13-1` refresh so the `macos` CI lane can advance past `Swift lint`

@@ -126,16 +126,14 @@ final class ExecApprovalsGatewayPrompter {
             activeSession: activeSession,
             requestSession: requestSession,
             lastInputSeconds: Self.lastInputSeconds(),
-            thresholdSeconds: 120
-        )
+            thresholdSeconds: 120)
 
         return PresentationDecision(
             shouldAsk: shouldAsk,
             canPresent: canPresent,
             security: security,
             askFallback: approvals.agent.askFallback,
-            allowlist: approvals.allowlist
-        )
+            allowlist: approvals.allowlist)
     }
 
     private static func fallbackDecision(

@@ -781,9 +781,8 @@ extension AppState {
         remoteTarget: String,
         remoteIdentity: String,
         remoteToken: String,
-        remoteTokenDirty: Bool) -> [String: Any]
-    {
-        updatedRemoteGatewayConfig(
+        remoteTokenDirty: Bool) -> [String: Any] {
+        Self.updatedRemoteGatewayConfig(
             current: current,
             transport: transport,
             remoteUrl: remoteUrl,
@@ -791,8 +790,7 @@ extension AppState {
             remoteTarget: remoteTarget,
             remoteIdentity: remoteIdentity,
             remoteToken: remoteToken,
-            remoteTokenDirty: remoteTokenDirty
-        ).remote
+            remoteTokenDirty: remoteTokenDirty).remote
     }
 
     static func _testSyncedGatewayRoot(
@@ -803,9 +801,8 @@ extension AppState {
         remoteIdentity: String,
         remoteUrl: String,
         remoteToken: String,
-        remoteTokenDirty: Bool) -> [String: Any]
-    {
-        syncedGatewayRoot(
+        remoteTokenDirty: Bool) -> [String: Any] {
+        Self.syncedGatewayRoot(
             currentRoot: currentRoot,
             connectionMode: connectionMode,
             remoteTransport: remoteTransport,
@@ -813,8 +810,7 @@ extension AppState {
             remoteIdentity: remoteIdentity,
             remoteUrl: remoteUrl,
             remoteToken: remoteToken,
-            remoteTokenDirty: remoteTokenDirty
-        ).root
+            remoteTokenDirty: remoteTokenDirty).root
     }
 }
 #endif
